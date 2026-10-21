@@ -9,12 +9,15 @@ package.path = table.concat({
 }, ";")
 
 vim.opt.runtimepath:append(root)
+vim.cmd("runtime plugin/sqlua.lua")
 
 local harness = require("tests.harness")
 
 require("tests.url_spec")
 require("tests.adapter_spec")
 require("tests.job_spec")
+require("tests.query_spec")
+require("tests.sqlite_spec")
 require("tests.config_spec")
 
 harness.run()

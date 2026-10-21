@@ -49,6 +49,8 @@ end)
 
 h.test("sqlite interactive argv", function()
 	local parsed, adapter = db.parse("sqlite::memory:")
+	parsed = h.ok(parsed)
+	adapter = h.ok(adapter)
 	local argv = adapter.interactive(parsed)
 	h.eq(argv, { "sqlite3", ":memory:" })
 end)
