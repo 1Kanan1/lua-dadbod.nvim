@@ -1,0 +1,75 @@
+local h = require("tests.harness")
+local adapters = require("sqlua.adapters")
+local db = require("sqlua.db")
+
+h.test("sqlite3 is an alias for sqlite", function()
+	local adapter = h.ok(adapters.get("sqlite3"))
+	h.eq(adapter.name, "sqlite")
+	h.eq(adapters.aliases().sqlite3, "sqlite")
+end)
+
+h.test("unknown adapters are rejected", function()
+	local adapter, err = adapters.get("postgresql")
+	h.is_nil(adapter)
+	h.matches(err, "no adapter")
+
+	local resolved, resolve_err = db.resolve("postgresql://host/db")
+	h.is_nil(resolved)
+	h.matches(resolve_err, "no adapter")
+end)
+
+h.test("sqlite canonicalizes to an absolute path", function()
+	local resolved = h.ok(db.resolve("sqlite:relative.db"))
+	h.matches(resolved, "^sqlite:/")
+	h.matches(resolved, "relative%.db$")
+end)
+
+h.test("sqlite defaults to memory", function()
+	h.eq(h.ok(db.resolve("sqlite:")), "sqlite::memory:")
+	h.eq(h.ok(db.resolve("sqlite::memory:")), "sqlite::memory:")
+end)
+
+h.test("sqlite metadata argv", function()
+	local argv = h.ok(db.argv("sqlite::memory:", { meta = true }))
+	h.eq(argv[1], "sqlite3")
+	h.eq(vim.tbl_contains(argv, "-noheader"), true)
+	h.eq(vim.tbl_contains(argv, "-header"), false)
+	h.eq(vim.tbl_contains(argv, "-separator"), true)
+	h.eq(argv[#argv], ":memory:")
+end)
+
+h.test("sqlite result argv", function()
+	local argv = h.ok(db.argv("sqlite::memory:"))
+	h.eq(argv[1], "sqlite3")
+	h.eq(vim.tbl_contains(argv, "-header"), true)
+	h.eq(vim.tbl_contains(argv, "-column"), true)
+	h.eq(vim.tbl_contains(argv, "-noheader"), false)
+	h.eq(argv[#argv], ":memory:")
+end)
+
+h.test("sqlite interactive argv", function()
+	local parsed, adapter = db.parse("sqlite::memory:")
+	local argv = adapter.interactive(parsed)
+	h.eq(argv, { "sqlite3", ":memory:" })
+end)
+
+h.test("sqlite helpers", function()
+	local adapter = h.ok(adapters.get("sqlite"))
+	h.matches(adapter.helpers.List, "limit 200")
+	h.matches(adapter.helpers.Columns, "pragma_table_info")
+end)
+
+h.test("sqlite binary lookup", function()
+	local binary = h.ok(db.binary("sqlite::memory:"))
+	h.eq(binary, "sqlite3")
+
+	local ok, err = db.check_binary("sqlite::memory:")
+	h.eq(ok, vim.fn.executable("sqlite3") == 1)
+	if ok then
+		h.is_nil(err)
+	end
+end)
+
+h.test("list adapters", function()
+	h.eq(adapters.list(), { "sqlite" })
+end)
