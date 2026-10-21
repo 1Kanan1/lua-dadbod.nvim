@@ -93,6 +93,7 @@ tests/run.lua
 tests/url_spec.lua
 tests/adapter_spec.lua
 tests/job_spec.lua
+tests/query_spec.lua
 tests/config_spec.lua
 tests/completion_spec.lua
 tests/sqlite_spec.lua
@@ -650,5 +651,28 @@ nvim --headless -u NONE -c "lua dofile('tests/run.lua')" -c "qa!"
 Result: 30 passed, 0 failed. A direct SQLite smoke test also returns
 `code=0` and `stdout="1\n"`.
 
-Not started: `execute.lua`, result buffers, connections, drawer, query
-lifecycle, completion.
+Not started: connections, drawer, completion.
+
+## Phase 2 checkpoint
+
+Implemented:
+
+- `db.run` and `db.resolve_buffer`.
+- `execute.run`, `run_buffer`, `db_command`, and `console`.
+- Result scratch buffers with header, stderr, rerun, cancel, generation guard,
+  and output cap.
+- Query buffers under `tmp_location`, split opening, helper SQL, execute on
+  save, bind parameters, save-as, and the query mappings.
+- `:DB` with query text, range, file input, and interactive console forms.
+- User events `SqluaQueryPre` and `SqluaQueryPost`.
+
+Verification:
+
+```
+nvim --headless -u NONE -c "lua dofile('tests/run.lua')" -c "qa!"
+```
+
+Result: 45 passed, 0 failed. A direct `:DB sqlite::memory: select 1 as x`
+prints the expected header and result.
+
+Not started: connections, drawer, attach/find buffer, completion.
