@@ -1,4 +1,5 @@
 local adapters = require("sqlua.adapters")
+local job = require("sqlua.job")
 local url = require("sqlua.url")
 local util = require("sqlua.util")
 
@@ -48,8 +49,8 @@ end
 
 function M.argv(input, opts)
 	local parsed, adapter = M.parse(input)
-	if not parsed then
-		return nil, nil, adapter
+	if not parsed or not adapter then
+		return nil, nil, adapter or "invalid connection URL"
 	end
 
 	local argv, env = adapter.argv(parsed, opts or {})
@@ -62,8 +63,8 @@ end
 
 function M.binary(input)
 	local parsed, adapter = M.parse(input)
-	if not parsed then
-		return nil, adapter
+	if not parsed or not adapter then
+		return nil, adapter or "invalid connection URL"
 	end
 
 	local binary = type(adapter.binary) == "function" and adapter.binary(parsed) or adapter.binary
@@ -95,14 +96,75 @@ end
 
 function M.file_path(input)
 	local parsed, adapter = M.parse(input)
-	if not parsed then
-		return nil, adapter
+	if not parsed or not adapter then
+		return nil, adapter or "invalid connection URL"
 	end
 	return url.file_path(parsed)
 end
 
 function M.adapters()
 	return adapters
+end
+
+function M.resolve_buffer(bufnr)
+	bufnr = bufnr or vim.api.nvim_get_current_buf()
+	if not vim.api.nvim_buf_is_valid(bufnr) then
+		return nil, "invalid buffer"
+	end
+
+	local meta = vim.b[bufnr].sqlua
+	if type(meta) == "table" then
+		local value = meta.conn or meta.url
+		if type(value) == "string" and value ~= "" then
+			return value
+		end
+	end
+
+	local buffer_db = vim.b[bufnr].db
+	if type(buffer_db) == "string" and buffer_db ~= "" then
+		return buffer_db
+	end
+
+	local global_db = vim.g.db
+	if type(global_db) == "string" and global_db ~= "" then
+		return global_db
+	end
+
+	local env_db = vim.env.DATABASE_URL
+	if type(env_db) == "string" and env_db ~= "" then
+		return env_db
+	end
+
+	return nil, "no connection for this buffer; pass a URL or set b:db or g:db"
+end
+
+function M.run(input, sql, opts, callback)
+	opts = opts or {}
+	if type(sql) ~= "string" then
+		return nil, "SQL must be a string"
+	end
+	if sql ~= "" and not sql:match("\n$") then
+		sql = sql .. "\n"
+	end
+
+	local ok, err = M.check_binary(input)
+	if not ok then
+		return nil, err
+	end
+
+	local argv, env, adapter = M.argv(input, opts)
+	if not argv then
+		return nil, adapter
+	end
+
+	local handle = job.run(argv, {
+		stdin = sql,
+		env = env,
+		cwd = opts.cwd,
+		timeout = opts.timeout,
+	}, callback)
+
+	return handle, nil, adapter
 end
 
 return M
