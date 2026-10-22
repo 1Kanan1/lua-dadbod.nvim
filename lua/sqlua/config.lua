@@ -14,8 +14,16 @@ local defaults = {
 	hide_schemas = {},
 	table_helpers = {},
 	icons = {
-		expanded = "▾",
-		collapsed = "▸",
+		expanded = "",
+		collapsed = "",
+		db = "󰆼",
+		table = "",
+		schema = "󰙅",
+		scratchpads = "",
+		scratchpad = "",
+		history = "󰋚",
+		history_entry = "·",
+		active = "●",
 	},
 	result = {
 		max_lines = 10000,
@@ -43,10 +51,16 @@ local function validate(opts)
 	assert(type(opts) == "table", "sqlua.setup: opts must be a table")
 
 	if opts.save_location ~= nil then
-		assert(type(opts.save_location) == "string" and opts.save_location ~= "", "sqlua.setup: save_location must be a non-empty string")
+		assert(
+			type(opts.save_location) == "string" and opts.save_location ~= "",
+			"sqlua.setup: save_location must be a non-empty string"
+		)
 	end
 	if opts.tmp_location ~= nil then
-		assert(type(opts.tmp_location) == "string" and opts.tmp_location ~= "", "sqlua.setup: tmp_location must be a non-empty string")
+		assert(
+			type(opts.tmp_location) == "string" and opts.tmp_location ~= "",
+			"sqlua.setup: tmp_location must be a non-empty string"
+		)
 	end
 	if opts.default_query ~= nil then
 		assert(type(opts.default_query) == "string", "sqlua.setup: default_query must be a string")
@@ -58,7 +72,10 @@ local function validate(opts)
 		assert(type(opts.auto_execute_helpers) == "boolean", "sqlua.setup: auto_execute_helpers must be a boolean")
 	end
 	if opts.bind_param_pattern ~= nil then
-		assert(type(opts.bind_param_pattern) == "string" and opts.bind_param_pattern ~= "", "sqlua.setup: bind_param_pattern must be a non-empty string")
+		assert(
+			type(opts.bind_param_pattern) == "string" and opts.bind_param_pattern ~= "",
+			"sqlua.setup: bind_param_pattern must be a non-empty string"
+		)
 	end
 	if opts.hide_schemas ~= nil then
 		assert(type(opts.hide_schemas) == "table", "sqlua.setup: hide_schemas must be a table")
@@ -73,17 +90,26 @@ local function validate(opts)
 	if opts.win ~= nil then
 		assert(type(opts.win) == "table", "sqlua.setup: win must be a table")
 		if opts.win.width ~= nil then
-			assert(type(opts.win.width) == "number" and opts.win.width > 0, "sqlua.setup: win.width must be a positive number")
+			assert(
+				type(opts.win.width) == "number" and opts.win.width > 0,
+				"sqlua.setup: win.width must be a positive number"
+			)
 		end
 		if opts.win.position ~= nil then
-			assert(opts.win.position == "left" or opts.win.position == "right", "sqlua.setup: win.position must be 'left' or 'right'")
+			assert(
+				opts.win.position == "left" or opts.win.position == "right",
+				"sqlua.setup: win.position must be 'left' or 'right'"
+			)
 		end
 	end
 
 	if opts.result ~= nil then
 		assert(type(opts.result) == "table", "sqlua.setup: result must be a table")
 		if opts.result.max_lines ~= nil then
-			assert(type(opts.result.max_lines) == "number" and opts.result.max_lines > 0, "sqlua.setup: result.max_lines must be a positive number")
+			assert(
+				type(opts.result.max_lines) == "number" and opts.result.max_lines > 0,
+				"sqlua.setup: result.max_lines must be a positive number"
+			)
 		end
 	end
 
@@ -99,10 +125,16 @@ local function validate(opts)
 			assert(type(opts.completion.mark) == "string", "sqlua.setup: completion.mark must be a string")
 		end
 		if opts.completion.limit ~= nil then
-			assert(type(opts.completion.limit) == "number" and opts.completion.limit > 0, "sqlua.setup: completion.limit must be a positive number")
+			assert(
+				type(opts.completion.limit) == "number" and opts.completion.limit > 0,
+				"sqlua.setup: completion.limit must be a positive number"
+			)
 		end
 		if opts.completion.timeout ~= nil then
-			assert(type(opts.completion.timeout) == "number" and opts.completion.timeout >= 0, "sqlua.setup: completion.timeout must be zero or positive")
+			assert(
+				type(opts.completion.timeout) == "number" and opts.completion.timeout >= 0,
+				"sqlua.setup: completion.timeout must be zero or positive"
+			)
 		end
 		if opts.completion.omnifunc ~= nil then
 			assert(type(opts.completion.omnifunc) == "boolean", "sqlua.setup: completion.omnifunc must be a boolean")
@@ -110,14 +142,20 @@ local function validate(opts)
 	end
 
 	if opts.mappings ~= nil then
-		assert(opts.mappings == false or type(opts.mappings) == "table", "sqlua.setup: mappings must be a table or false")
+		assert(
+			opts.mappings == false or type(opts.mappings) == "table",
+			"sqlua.setup: mappings must be a table or false"
+		)
 		if type(opts.mappings) == "table" then
 			if opts.mappings.enabled ~= nil then
 				assert(type(opts.mappings.enabled) == "boolean", "sqlua.setup: mappings.enabled must be a boolean")
 			end
 			for _, key in ipairs({ "drawer", "query", "result" }) do
 				if opts.mappings[key] ~= nil then
-					assert(type(opts.mappings[key]) == "boolean", "sqlua.setup: mappings." .. key .. " must be a boolean")
+					assert(
+						type(opts.mappings[key]) == "boolean",
+						"sqlua.setup: mappings." .. key .. " must be a boolean"
+					)
 				end
 			end
 		end
