@@ -20,7 +20,8 @@ That is about a third of the Vim script being replaced.
   adapter with the `mariadb` binary.
 - Connections from `SQLUA_URL` / `SQLUA_NAME`, `g:db`, `g:dbs`, and
   `connections.json`.
-- A drawer with connections, schemas/tables, saved queries, and new query.
+- A drawer with connection trees, schemas/tables, global Scratchpads, and
+  global session History.
 - Query buffers that run on write, run a selection, save, rename, delete, and
   bind parameters.
 - Async query execution with cancel, rerun, elapsed time, and stderr.
@@ -38,7 +39,6 @@ These are useful but not needed for the first working version:
   Presto/Trino, Impala, osquery, jq.
 - Interactive password prompt.
 - Result cell parsing, folds, foreign-key jump, layout toggle.
-- Query result history in the drawer.
 
 ### Non-goals
 
@@ -54,7 +54,7 @@ These are useful but not needed for the first working version:
 |---|---|
 | Runtime | Neovim 0.10+ only, `vim.system()` for processes |
 | Command | Keep `:DB` for query and console use |
-| UI commands | `:Sqlua`, `:SqluaToggle`, `:SqluaClose`, `:SqluaAddConnection`, `:SqluaFindBuffer`, `:SqluaRenameBuffer`, `:SqluaClearCache` |
+| UI commands | `:Sqlua`, `:SqluaToggle`, `:SqluaClose`, `:SqluaAddConnection`, `:SqluaFindBuffer`, `:SqluaRenameBuffer`, `:SqluaClearCache`, `:SqluaRefresh` |
 | Filetypes | `sqlua` for the drawer, `sqlua_result` for results, normal `sql` for query buffers |
 | Config | `require("sqlua").setup(opts)` only, no `g:db_ui_*` |
 | Connections | `SQLUA_*`, `g:db`, `g:dbs`, `connections.json` |
@@ -69,8 +69,6 @@ These are useful but not needed for the first working version:
 
 ```
 plugin/sqlua.lua                    command registration, load guard
-ftplugin/sqlua.lua                  drawer mappings
-ftplugin/sqlua_result.lua           result mappings
 lua/sqlua/init.lua                  public API
 lua/sqlua/config.lua                defaults and merge
 lua/sqlua/util.lua                  paths, slugs, files, prompts, notify
@@ -80,6 +78,7 @@ lua/sqlua/job.lua                   vim.system wrapper, cancel, timeout
 lua/sqlua/db.lua                    connection resolution, adapters, metadata
 lua/sqlua/execute.lua               :DB, running SQL, events
 lua/sqlua/result.lua                result scratch buffers
+lua/sqlua/history.lua               session history and history preview
 lua/sqlua/query.lua                 query files, bind params, save/rename
 lua/sqlua/ui.lua                    connection discovery, state, JSON
 lua/sqlua/drawer.lua                drawer rendering and actions
@@ -95,6 +94,8 @@ tests/adapter_spec.lua
 tests/job_spec.lua
 tests/query_spec.lua
 tests/config_spec.lua
+tests/history_spec.lua
+tests/ui_spec.lua
 tests/completion_spec.lua
 tests/sqlite_spec.lua
 doc/sqlua.txt
@@ -110,7 +111,7 @@ Rough size:
 | db, execute, result | 500 |
 | ui, drawer | 500 |
 | query, completion | 400 |
-| commands, ftplugins, tests | 500 |
+| commands, tests | 500 |
 
 ## 4. Core design
 
@@ -264,13 +265,14 @@ One table keyed by resolved connection URL:
 ```
 
 - No `:DB g:x = url`, no `:DB url :command`, no operator mapping.
-- Command completion covers schemes, connection names, and files after `<`.
+- Command completion is deferred until the core UI is stable.
 - `:Sqlua` opens the drawer, `:SqluaToggle` toggles, `:SqluaClose` closes.
 - `:SqluaAddConnection` prompts for URL and name, validates the URL, appends to
   `connections.json`, and refreshes the drawer.
 - `:SqluaFindBuffer` attaches the current buffer to a connection.
 - `:SqluaRenameBuffer` renames a saved query.
 - `:SqluaClearCache` clears metadata and completion caches.
+- `:SqluaRefresh` rebuilds the connection list and clears metadata.
 - All commands catch errors and report them through `vim.notify`.
 
 ### Drawer
@@ -278,36 +280,63 @@ One table keyed by resolved connection URL:
 One text buffer, one row list, rendered from scratch on each change.
 
 ```
-▾ local
-    New query
-    Saved queries (3)
-    Tables (12)
-      users
-      orders
+▾ 󰆼 sqlite/test ●
+  ▾  Tables (2)
+       users
+       orders
+▾ 󰆼 postgres/prod
+  ▾ 󰙅 Schemas (3)
+      󰙅 public
+      󰙅 information_schema
+      󰙅 pg_catalog
+▾  Scratchpads (2)
+     daily-report (sqlite/test)
+     users (sqlite/test) *
+▾ 󰋚 History (3)
+    · select * from users (sqlite/test, 14:32)
 ```
 
-With schema support:
-
-```
-▾ production
-    New query
-    Saved queries (0)
-    Schemas (2)
-      public (12)
-        users
-        orders
-      audit (3)
-```
+- `●` marks the active connection. Expanding a connection, opening a table, or
+  pressing `n` on a connection makes it active.
+- `dbms/db` is used only when more than one DBMS is configured. With a single
+  DBMS, labels are just `test` or `prod`.
+- Icons: `󰆼` connection, `` Tables and table rows, `󰙅` Schemas and schema rows,
+  `` Scratchpads, `` scratchpad rows, `󰋚` History, `·` history rows.
+- Scratchpads is global. It lists saved query files from every connection
+  folder plus open query buffers. Labels show the connection in parentheses.
+  Unsaved or modified scratchpads are marked `*`. A saved file that is open in
+  a buffer appears once.
+- History is global and session-only. It records every query that finishes,
+  newest first, capped at 50, and deduplicates by connection plus SQL.
+- `Enter` on a history row opens a floating preview with the full SQL.
+  `R` reruns directly from the stored history entry, closes the preview, and
+  shows the result. `q` or `<Esc>` closes without running.
+- There is no `+ New scratchpad` row. `n` creates a scratchpad:
+  on a connection, table, scratchpad, or history row it uses that row's
+  connection; on a section it uses the active connection; if none is active it
+  prompts once. A single configured connection is active automatically.
+- Empty states: `No scratchpads. Press n to create one.` and `No history yet.`
+- Scratchpads and History start collapsed on the first drawer open. Their counts
+  stay visible while collapsed.
+- Sections are separated by a blank line.
+- There is no `+ Add connection` row. With no connections, the drawer shows
+  `No connections. Press A to add one.`
+- Drawer colors come from highlight groups linked to the active colorscheme:
+  `SqluaDb`, `SqluaTable`, `SqluaSchema`, `SqluaScratchpads`, `SqluaScratchpad`,
+  `SqluaHistory`, `SqluaHistoryEntry`, `SqluaChevron`, `SqluaCount`,
+  `SqluaActive`, and `SqluaHelp`. Users can override any of them.
 
 - `<CR>` / `o`: open or toggle.
 - `S`: open in a vertical split.
+- `n`: new scratchpad.
 - `C`: run the `Columns` query on a table row. If user helpers are configured,
   open `vim.ui.select` with `Columns` plus those helpers first.
 - `A`: add connection.
-- `r`: rename a saved query, or a connection from `connections.json`.
-- `d`: delete a saved query, or a connection from `connections.json`.
+- `r`: rename a saved scratchpad. Unsaved scratchpads must be saved first.
+- `d`: delete a saved scratchpad or file connection, wipe an unsaved scratchpad,
+  or remove a history entry.
 - `R`: refresh the selected connection; at the root, refresh all.
-- `H`: show scheme, source, and database in the connection label.
+- `H`: show the scheme and source in the connection label.
 - `q`: close.
 - `?`: print a short key reminder through `vim.notify`.
 
@@ -318,8 +347,8 @@ With schema support:
   selection.
 - Both auto-run paths are controlled by `auto_execute_helpers = true`. Set it
   to `false` to only open the SQL and wait for `:w` or `<Leader>S`.
-- No helper submenu, no buffers section, and no `:SqluaBuffers` picker. Scratch
-  queries are normal listed buffers and appear in the user's bufferline.
+- No helper submenu, no per-connection query section, and no `:SqluaBuffers`
+  picker.
 - No sibling navigation, help pane, result list, or progress animation.
 
 ### Query buffers
@@ -327,12 +356,13 @@ With schema support:
 - Created as real files under `tmp_location`, so `:w` works and
   `BufWritePost` can run the query.
 - Name: `<slug(conn)>-<table>-<helper>-<timestamp>.sql`.
-- `b:sqlua = { conn_key, url, source, schema, table, helper, bind, result_buf }`.
+- `b:sqlua = { conn, conn_key, conn_name, dbms, url, source, schema, table, helper, bind, path }`.
 - The buffer keeps `filetype=sql`, so Treesitter and LSP keep working.
 - `BufWritePost` runs the whole buffer when `execute_on_save = true`.
 - `<Leader>S` runs the whole buffer; in visual mode it runs the selection.
 - `<Leader>W` saves a copy under
-  `<save_location>/queries/<slug(conn)>/<name>.sql` using `:noautocmd saveas`,
+  `<save_location>/queries/<slug(connection-key)>/<name>.sql` using
+  `:noautocmd saveas`,
   then marks the buffer as saved.
 - `<Leader>E` edits bind parameters through `vim.ui.select`: choose a
   parameter, enter a new value, or clear all.
@@ -340,7 +370,7 @@ With schema support:
   ignoring matches inside single quotes, prompted once, cached in
   `b:sqlua.bind`, and substituted with quoting for numeric, boolean, already
   quoted, and string values.
-- Opening a file under `queries/<slug>/` sets the connection from the folder
+- Opening a file under `queries/<slug(connection-key)>/` sets the connection from the folder
   and marks it saved. No filename guessing beyond that.
 - Saved queries can be renamed or deleted from the drawer. Open buffers follow
   the rename or are wiped on delete.
@@ -400,7 +430,18 @@ require("sqlua").setup({
   bind_param_pattern = ":%w+",
   hide_schemas = {},
   table_helpers = {},
-  icons = { expanded = "▾", collapsed = "▸" },
+  icons = {
+    expanded = "",
+    collapsed = "",
+    db = "󰆼",
+    table = "",
+    schema = "󰙅",
+    scratchpads = "",
+    scratchpad = "",
+    history = "󰋚",
+    history_entry = "·",
+    active = "●",
+  },
   result = { max_lines = 10000 },
   completion = {
     enabled = true,
@@ -421,7 +462,9 @@ require("sqlua").setup({
 ```
 
 `table_helpers` merges over adapter defaults. An empty string removes a helper.
-`mappings = false` disables all built-in maps.
+`mappings = false` disables all built-in maps. `icons = false` disables type
+icons while keeping the expand/collapse markers. Drawer colors are controlled
+by the `Sqlua*` highlight groups listed above, not by hardcoded colors.
 
 Public API:
 
@@ -429,7 +472,7 @@ Public API:
 local sqlua = require("sqlua")
 
 sqlua.setup(opts)
-sqlua.open(mods)
+sqlua.open()
 sqlua.toggle()
 sqlua.close()
 sqlua.add_connection(opts?)          -- nil opens prompts
@@ -471,7 +514,7 @@ sqlua.refresh()
 | Progress float and timers | The result buffer can show a running state |
 | Nerd font icon set and syntax file | Simple expand/collapse markers are enough |
 | Help pane and sibling navigation | Normal `j`/`k` and a one-line help notification |
-| Buffers section | Scratch queries are already normal buffers |
+| Per-connection buffers section | Scratchpads scans open query buffers at render time, so there is no persistent buffer list to keep in sync |
 | Result list in the drawer | Results are one split away and not a navigation target |
 | Folds, layout toggle, foreign-key jump | Expensive adapter-specific result parsing for occasional use |
 | Cell and header yank | Same reason; can be added later on top of a normalized result format |
@@ -612,7 +655,7 @@ server, or is documented as untested when no server is available.
 | `<Plug>(DBUI_*)` | buffer mappings from config |
 
 `:DB` keeps its familiar forms. Saved queries are not migrated automatically.
-Copy them into `queries/<connection-slug>/` or keep using the old folder as
+Copy them into `queries/<connection-key-slug>/` or keep using the old folder as
 `save_location` until the move is done.
 
 ## 12. Decisions
@@ -624,7 +667,10 @@ Copy them into `queries/<connection-slug>/` or keep using the old folder as
    toggle in v1.
 3. Keep `:DB` alongside the `:Sqlua*` commands.
 4. Completion: Blink plus opt-in Omni. No `nvim-cmp`.
-5. Drawer: no buffers section, no helper submenu, no `:SqluaBuffers` picker.
+5. Drawer: connection trees plus global Scratchpads and History. No
+   per-connection query rows, helper submenu, `:SqluaBuffers` picker, or
+   `+ Add connection` row. Scratchpads and History default to collapsed.
+   Sections are separated by a blank line. `A` adds a connection.
    Table `Enter` runs `List`; `C` runs `Columns`. Both run immediately by
    default. If user helpers are configured, `C` opens a picker first.
 6. Table helpers: `List` plus `Columns` for all core adapters. Indexes, foreign
@@ -632,6 +678,21 @@ Copy them into `queries/<connection-slug>/` or keep using the old folder as
    `table_helpers` snippets.
 7. Password prompt: deferred. Use URL passwords, environment variables, and
    CLI credential files.
+8. Scratchpads: saved files plus open query buffers, listed globally with the
+   connection in parentheses. `*` marks unsaved or modified. `n` creates one;
+   there is no `+ New scratchpad` row.
+9. Active connection: set by expanding a connection, opening a table, or
+   pressing `n` on a connection. It is marked `●`. A single connection is
+   active automatically; otherwise `n` prompts once when nothing is active.
+10. History: session-only, newest first, capped at 50, deduplicated by
+    connection plus SQL. `Enter` opens a floating preview; `R` reruns directly
+    from the stored entry and closes the preview; `d` removes an entry.
+11. Display: `dbms/db` only when more than one DBMS is configured. Otherwise
+    use just the database name. This applies to connections, scratchpads, and
+    history.
+12. Icons and colors: Nerd Font glyphs from the config, with `icons = false`
+    disabling type icons. Colors use `Sqlua*` highlight groups linked to the
+    colorscheme, so no palette is hardcoded.
 
 ## Phase 1 checkpoint
 
@@ -676,3 +737,45 @@ Result: 45 passed, 0 failed. A direct `:DB sqlite::memory: select 1 as x`
 prints the expected header and result.
 
 Not started: connections, drawer, attach/find buffer, completion.
+
+## Phase 3 checkpoint
+
+Implemented:
+
+- Connection discovery from `SQLUA_URL` / `SQLUA_NAME`, `g:db`, `g:dbs`
+  (mapping or ordered list, string or function values), and
+  `connections.json`.
+- Connection state, duplicate handling, saved query folders, active connection,
+  and selection.
+- `db.fetch_tables` with a per-connection metadata cache and concurrent request
+  coalescing.
+- The drawer with connection expand/collapse, tables, global Scratchpads,
+  global History, async loading, errors, details, icons, empty states, section
+  spacing, colors, and collapsed Scratchpads/History by default.
+- `dbms/db` labels only when more than one DBMS is configured.
+- Scratchpads aggregate saved files from every connection and open query
+  buffers, with unsaved or modified entries marked `*`.
+- History is session-only, deduplicated by connection plus SQL, capped at 50,
+  with a floating full-query preview and direct rerun.
+- Drawer actions: `Enter`/`o`, `S`, `n`, `C`, `A`, `r`, `d`, `R`, `H`, `q`, `?`.
+- Commands: `:Sqlua`, `:SqluaToggle`, `:SqluaClose`, `:SqluaAddConnection`,
+  `:SqluaFindBuffer`, `:SqluaRenameBuffer`, `:SqluaClearCache`, and
+  `:SqluaRefresh`.
+- Public API: `open`, `toggle`, `close`, `add_connection`, `attach`,
+  `connections`, `get_connection`, `run`, `statusline`, `clear_cache`, and
+  `refresh`.
+- Query buffers can be opened from saved files, focused as open scratchpads,
+  attached to arbitrary buffers, and opened in a vertical split.
+
+Verification:
+
+```
+nvim --headless -u NONE -c "lua dofile('tests/run.lua')" -c "qa!"
+```
+
+Result: 57 passed, 0 failed. The drawer test discovers a `g:dbs` connection,
+expands it, loads tables asynchronously, opens a table query, waits for its
+result, and opens the `Columns` helper. Separate tests cover active connections,
+`dbms/db` labels, scratchpads, and history preview plus rerun.
+
+Not started: completion.
