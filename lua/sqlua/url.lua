@@ -283,6 +283,23 @@ function M.file_path(parsed)
 	return vim.fs.normalize(raw)
 end
 
+function M.display_name(parsed, fallback)
+	if type(parsed) ~= "table" then
+		return fallback or "default"
+	end
+	if parsed.opaque == ":memory:" then
+		return "memory"
+	end
+	local value = parsed.opaque or parsed.path
+	if value and value ~= "" and value ~= "/" then
+		return vim.fs.basename(value)
+	end
+	if parsed.host and parsed.host ~= "" then
+		return parsed.host
+	end
+	return fallback or "default"
+end
+
 function M.absorb(parsed, mapping)
 	if not parsed.params then
 		return parsed

@@ -20,22 +20,6 @@ local function source_buffer(opts)
 	return bufnr
 end
 
-local function short_name(parsed)
-	if parsed.opaque == ":memory:" then
-		return "memory"
-	end
-	if parsed.opaque and parsed.opaque ~= "" then
-		return vim.fs.basename(parsed.opaque)
-	end
-	if parsed.path and parsed.path ~= "" and parsed.path ~= "/" then
-		return vim.fs.basename(parsed.path)
-	end
-	if parsed.host and parsed.host ~= "" then
-		return parsed.host
-	end
-	return "default"
-end
-
 local function result_for(source, opts)
 	local existing = vim.b[source].sqlua_result_buf
 	if existing and vim.api.nvim_buf_is_valid(existing) and not opts.bang then
@@ -82,7 +66,7 @@ function M.run(sql, opts, callback)
 	end
 
 	local display = opts.name or (configured and configured.name) or url.safe_format(parsed)
-	local history_name = opts.name or (configured and configured.name) or short_name(parsed)
+	local history_name = opts.name or (configured and configured.name) or url.display_name(parsed)
 	local result_buf, result_err = result_for(source, {
 		source_buf = source,
 		conn = canonical,

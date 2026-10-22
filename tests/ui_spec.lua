@@ -142,8 +142,12 @@ h.test(":SqluaFindBuffer attaches the current buffer", function()
 	vim.api.nvim_set_current_buf(bufnr)
 	vim.cmd("SqluaFindBuffer")
 
-	h.matches(vim.b[bufnr].sqlua.conn, "sqlite::memory:")
-	h.eq(vim.b[bufnr].sqlua.conn_name, "only")
+	local meta = vim.b[bufnr].sqlua
+	h.matches(meta.conn, "sqlite::memory:")
+	h.eq(meta.conn_name, "only")
+	h.eq(meta.conn_key, "only_g:dbs")
+	h.eq(meta.dbms, "sqlite")
+	h.eq(meta.source, "attached")
 
 	restore_globals(previous, directory)
 end)
@@ -163,6 +167,7 @@ h.test("connection labels add the dbms only for multiple dbms", function()
 	vim.g.dbs = { test = "sqlite::memory:" }
 	ui.reset()
 	local sqlite = ui.get("test_g:dbs")
+	h.eq(ui.has_multiple_dbms(), false)
 	h.eq(ui.connection_label(sqlite.dbms, sqlite.name), "test")
 
 	vim.g.dbs = {
@@ -172,6 +177,7 @@ h.test("connection labels add the dbms only for multiple dbms", function()
 	ui.reset()
 	sqlite = ui.get("test_g:dbs")
 	local postgres = ui.get("prod_g:dbs")
+	h.eq(ui.has_multiple_dbms(), true)
 	h.eq(ui.connection_label(sqlite.dbms, sqlite.name), "sqlite/test")
 	h.eq(ui.connection_label(postgres.dbms, postgres.name), "postgres/prod")
 

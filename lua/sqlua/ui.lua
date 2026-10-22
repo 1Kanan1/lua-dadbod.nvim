@@ -12,6 +12,7 @@ local state = {
 	warned = {},
 	active = nil,
 	activated = {},
+	multiple_dbms = false,
 }
 
 local function connection_file()
@@ -19,21 +20,22 @@ local function connection_file()
 end
 
 local function url_name(raw)
-	local parsed = url.parse(raw)
-	if parsed then
-		if parsed.opaque == ":memory:" then
-			return "memory"
-		end
-		local value = parsed.opaque
-			or (parsed.path and parsed.path:gsub("^/", ""))
-		if value and value ~= "" then
-			return vim.fs.basename(value)
-		end
-		if parsed.host and parsed.host ~= "" then
-			return parsed.host
-		end
+	return url.display_name(url.parse(raw))
+end
+
+local function read_file_connections()
+	local file = connection_file()
+	if vim.fn.filereadable(file) == 0 or vim.fn.getfsize(file) <= 0 then
+		return {}
 	end
-	return "default"
+	local data, err = util.read_json(file)
+	if not data then
+		return nil, err
+	end
+	if type(data) ~= "table" or (#data == 0 and next(data) ~= nil) then
+		return nil, "connections.json must contain an array"
+	end
+	return data
 end
 
 local function add_entry(list, seen, name, raw, source)
@@ -122,17 +124,9 @@ local function add_sources(list, seen)
 		add_from_gdbs(list, seen, config.get().dbs, "config")
 	end
 
-	local file = connection_file()
-	if vim.fn.filereadable(file) == 0 or vim.fn.getfsize(file) <= 0 then
-		return
-	end
-	local data, err = util.read_json(file)
+	local data, err = read_file_connections()
 	if not data then
 		util.warn(err)
-		return
-	end
-	if type(data) ~= "table" or (#data == 0 and next(data) ~= nil) then
-		util.warn("connections.json must contain an array")
 		return
 	end
 	for _, item in ipairs(data) do
@@ -150,6 +144,8 @@ function M.refresh()
 	add_sources(list, seen)
 
 	local by_key = {}
+	local seen_dbms = {}
+	local dbms_count = 0
 	for _, entry in ipairs(list) do
 		local old = previous[entry.key]
 		if old and old.url == entry.url then
@@ -159,8 +155,6 @@ function M.refresh()
 			entry.error = old.error
 			entry.tables = old.tables
 			entry.tables_expanded = old.tables_expanded
-			entry.saved_expanded = old.saved_expanded
-			entry.scheme = old.scheme
 		else
 			entry.tables_expanded = false
 		end
@@ -168,15 +162,21 @@ function M.refresh()
 		local parsed, adapter = db.parse(entry.url)
 		if parsed and adapter then
 			entry.dbms = adapter.name
+			entry.canonical = url.format(parsed)
 		else
 			local raw = url.parse(entry.url)
 			entry.dbms = raw and raw.scheme or nil
+		end
+		if entry.dbms and not seen_dbms[entry.dbms] then
+			seen_dbms[entry.dbms] = true
+			dbms_count = dbms_count + 1
 		end
 		by_key[entry.key] = entry
 	end
 
 	state.list = list
 	state.by_key = by_key
+	state.multiple_dbms = dbms_count > 1
 	state.initialized = true
 
 	local activated = {}
@@ -257,15 +257,8 @@ function M.dbms_name(dbms)
 end
 
 function M.has_multiple_dbms()
-	local seen = {}
-	local count = 0
-	for _, entry in ipairs(M.connections()) do
-		if entry.dbms and not seen[entry.dbms] then
-			seen[entry.dbms] = true
-			count = count + 1
-		end
-	end
-	return count > 1
+	M.connections()
+	return state.multiple_dbms
 end
 
 function M.connection_label(dbms, name)
@@ -282,8 +275,7 @@ function M.find_by_url(connection)
 		return nil
 	end
 	for _, entry in ipairs(M.connections()) do
-		local resolved = db.resolve(entry.url)
-		if resolved == canonical then
+		if entry.canonical == canonical then
 			return entry
 		end
 	end
@@ -385,6 +377,7 @@ function M.reset()
 		warned = {},
 		active = nil,
 		activated = {},
+		multiple_dbms = false,
 	}
 	db.clear_meta()
 end
@@ -396,16 +389,6 @@ function M.clear_meta()
 		entry.error = nil
 		entry.tables = {}
 	end
-end
-
-function M.scheme(entry)
-	local parsed, adapter = db.parse(entry.url)
-	if parsed and adapter then
-		entry.scheme = adapter.name
-	else
-		entry.scheme = nil
-	end
-	return entry.scheme
 end
 
 function M.saved_dir(entry)
@@ -429,18 +412,10 @@ local function save_connection(raw, name, callback)
 	end
 
 	local file = connection_file()
-	local data = {}
-	if vim.fn.filereadable(file) == 1 and vim.fn.getfsize(file) > 0 then
-		local decoded, err = util.read_json(file)
-		if not decoded then
-			util.error(err)
-			return
-		end
-		if type(decoded) ~= "table" or (#decoded == 0 and next(decoded) ~= nil) then
-			util.error("connections.json must contain an array")
-			return
-		end
-		data = decoded
+	local data, err = read_file_connections()
+	if not data then
+		util.error(err)
+		return
 	end
 
 	for _, item in ipairs(data) do
@@ -510,7 +485,7 @@ function M.delete_connection(entry, callback)
 	end
 
 	local file = connection_file()
-	local data, err = util.read_json(file)
+	local data, err = read_file_connections()
 	if not data then
 		return nil, err
 	end
@@ -559,8 +534,5 @@ function M.pick(prompt, callback)
 	end)
 	return true
 end
-
-M.connection_file = connection_file
-M.url_name = url_name
 
 return M

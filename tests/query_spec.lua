@@ -52,6 +52,11 @@ h.test("save a query to disk", function()
 	config.setup({ save_location = save_location })
 
 	local bufnr = h.ok(query.open("sqlite::memory:", { auto_execute = false }))
+	local meta = vim.b[bufnr].sqlua
+	h.eq(meta.conn, "sqlite::memory:")
+	h.eq(meta.conn_name, "memory")
+	h.eq(meta.conn_key, "memory")
+	h.eq(meta.dbms, "sqlite")
 	local path, err = query.save_as(bufnr, "my query")
 	path = h.ok(path, err)
 	h.eq(vim.fn.filereadable(path), 1)

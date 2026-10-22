@@ -1,6 +1,7 @@
 local config = require("sqlua.config")
 local db = require("sqlua.db")
 local sql = require("sqlua.sql")
+local url = require("sqlua.url")
 local util = require("sqlua.util")
 
 local M = {}
@@ -199,28 +200,47 @@ function M.resolve_binds(text, bind, callback)
 end
 
 local function resolve_connection(connection)
-	local connection_url, connection_name = connection_parts(connection)
-	if not connection_url or connection_url == "" then
-		return nil, nil, nil, "connection URL is required"
+	local raw_url, explicit_name = connection_parts(connection)
+	if not raw_url or raw_url == "" then
+		return nil, "connection URL is required"
 	end
 
-	local canonical, err = db.resolve(connection_url)
-	if not canonical then
-		return nil, nil, nil, err
-	end
-
-	local parsed, adapter = db.parse(canonical)
+	local parsed, adapter = db.parse(raw_url)
 	if not parsed or not adapter then
-		return nil, nil, nil, adapter or "invalid connection URL"
+		return nil, adapter or "invalid connection URL"
 	end
 
-	connection_name = connection_name
-		or (parsed.opaque == ":memory:" and "memory")
-		or (parsed.opaque and parsed.opaque ~= ":memory:" and parsed.opaque)
-		or (parsed.path and parsed.path:gsub("^/", ""))
-		or adapter.name
+	local name = explicit_name or url.display_name(parsed, adapter.name)
+	return {
+		url = url.format(parsed),
+		input = raw_url,
+		name = name,
+		key = (type(connection) == "table" and connection.key) or name,
+		adapter = adapter,
+		parsed = parsed,
+	}
+end
 
-	return canonical, connection_name, adapter, nil, connection_url, parsed
+local function apply_connection_meta(bufnr, ctx, opts)
+	opts = opts or {}
+	local meta = vim.b[bufnr].sqlua
+	if type(meta) ~= "table" then
+		meta = {}
+	end
+	meta.conn = ctx.url
+	meta.url = ctx.input
+	meta.conn_name = ctx.name
+	meta.conn_key = ctx.key
+	meta.dbms = ctx.adapter.name
+	meta.bind = meta.bind or {}
+	if opts.source then
+		meta.source = opts.source
+	end
+	if opts.path then
+		meta.path = opts.path
+	end
+	vim.b[bufnr].sqlua = meta
+	return meta
 end
 
 local function setup_buffer(bufnr, adapter)
@@ -267,16 +287,16 @@ end
 
 function M.open(connection, opts)
 	opts = opts or {}
-	local canonical, connection_name, adapter, err, connection_url, parsed = resolve_connection(connection)
-	if not canonical then
+	local ctx, err = resolve_connection(connection)
+	if not ctx then
 		return nil, err
 	end
 
-	local dbname = opts.dbname or opts.schema or (parsed.path and parsed.path:gsub("^/", "")) or connection_name
+	local dbname = opts.dbname or opts.schema or (ctx.parsed.path and ctx.parsed.path:gsub("^/", "")) or ctx.name
 	local directory = vim.fn.expand(config.get().tmp_location)
 	util.ensure_dir(directory)
 
-	local base = util.slug(connection_name)
+	local base = util.slug(ctx.name)
 	if opts.table and opts.table ~= "" then
 		base = base .. "-" .. util.slug(opts.table) .. "-" .. util.slug(opts.helper or "List")
 	else
@@ -300,27 +320,19 @@ function M.open(connection, opts)
 	local bufnr = vim.api.nvim_create_buf(true, false)
 	vim.api.nvim_win_set_buf(0, bufnr)
 	vim.api.nvim_buf_set_name(bufnr, path)
-	setup_buffer(bufnr, adapter)
+	setup_buffer(bufnr, ctx.adapter)
 
-	local meta = {
-		conn = canonical,
-		url = connection_url,
-		conn_name = connection_name,
-		conn_key = (type(connection) == "table" and connection.key) or connection_name,
-		dbms = adapter.name,
-		source = "scratch",
-		schema = opts.schema or "",
-		table = opts.table or "",
-		helper = opts.helper or "",
-		bind = {},
-		result_buf = nil,
-	}
+	local meta = apply_connection_meta(bufnr, ctx, { source = "scratch" })
+	meta.schema = opts.schema or ""
+	meta.table = opts.table or ""
+	meta.helper = opts.helper or ""
+	meta.result_buf = nil
 	vim.b[bufnr].sqlua = meta
 
 	local content = opts.sql
 	if not content and opts.table and opts.table ~= "" then
 		local helper_err
-		content, helper_err = helper_sql(canonical, {
+		content, helper_err = helper_sql(ctx.url, {
 			table = opts.table,
 			schema = opts.schema,
 			helper = opts.helper,
@@ -357,8 +369,8 @@ function M.open_path(path, connection, opts)
 		return nil, "query file not found: " .. path
 	end
 
-	local canonical, connection_name, adapter, err, connection_url = resolve_connection(connection)
-	if not canonical then
+	local ctx, err = resolve_connection(connection)
+	if not ctx then
 		return nil, err
 	end
 
@@ -367,20 +379,11 @@ function M.open_path(path, connection, opts)
 	vim.fn.bufload(bufnr)
 	vim.api.nvim_win_set_buf(0, bufnr)
 
-	local meta = vim.b[bufnr].sqlua
-	if type(meta) ~= "table" then
-		meta = {}
-	end
-	meta.conn = canonical
-	meta.url = connection_url
-	meta.conn_name = connection_name
-	meta.conn_key = (type(connection) == "table" and connection.key) or connection_name
-	meta.dbms = adapter.name
-	meta.source = "saved"
-	meta.path = vim.api.nvim_buf_get_name(bufnr)
-	meta.bind = meta.bind or {}
-	vim.b[bufnr].sqlua = meta
-	setup_buffer(bufnr, adapter)
+	apply_connection_meta(bufnr, ctx, {
+		source = "saved",
+		path = vim.api.nvim_buf_get_name(bufnr),
+	})
+	setup_buffer(bufnr, ctx.adapter)
 	return bufnr
 end
 
@@ -410,24 +413,15 @@ function M.attach(connection, bufnr)
 		return nil, "invalid buffer"
 	end
 
-	local canonical, connection_name, adapter, err, connection_url = resolve_connection(connection)
-	if not canonical then
+	local ctx, err = resolve_connection(connection)
+	if not ctx then
 		return nil, err
 	end
 
-	local meta = vim.b[bufnr].sqlua
-	if type(meta) ~= "table" then
-		meta = {}
-	end
-	meta.conn = canonical
-	meta.url = connection_url
-	meta.conn_name = connection_name
-	meta.conn_key = (type(connection) == "table" and connection.key) or connection_name
-	meta.dbms = adapter.name
-	meta.source = meta.source or "attached"
-	meta.bind = meta.bind or {}
-	vim.b[bufnr].sqlua = meta
-	setup_buffer(bufnr, adapter)
+	local current = vim.b[bufnr].sqlua
+	local source = type(current) == "table" and current.source or "attached"
+	apply_connection_meta(bufnr, ctx, { source = source })
+	setup_buffer(bufnr, ctx.adapter)
 	return bufnr
 end
 
