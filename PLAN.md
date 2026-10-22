@@ -446,7 +446,6 @@ require("sqlua").setup({
   execute_on_save = true,
   auto_execute_helpers = true,
   bind_param_pattern = ":%w+",
-  hide_schemas = {},
   table_helpers = {},
   icons = {
     expanded = "",
@@ -461,14 +460,6 @@ require("sqlua").setup({
     active = "●",
   },
   result = { max_lines = 10000 },
-  completion = {
-    enabled = true,
-    filetypes = { "sql", "mysql", "plsql" },
-    mark = "[DB]",
-    limit = 200,
-    timeout = 3000,
-    omnifunc = false,
-  },
   mappings = {
     enabled = true,
     global = true,
@@ -480,6 +471,7 @@ require("sqlua").setup({
 })
 ```
 
+`completion` and `hide_schemas` are intentionally absent until their code lands.
 `table_helpers` merges over adapter defaults. An empty string removes a helper.
 `mappings = false` disables all built-in maps. `icons = false` disables type
 icons while keeping the expand/collapse markers. Drawer colors are controlled

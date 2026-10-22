@@ -8,20 +8,18 @@ h.test("config defaults", function()
 	h.eq(current.win.position, "left")
 	h.eq(current.execute_on_save, true)
 	h.eq(current.auto_execute_helpers, true)
-	h.eq(current.completion.enabled, true)
-	h.eq(current.completion.filetypes, { "sql", "mysql", "plsql" })
+	h.eq(current.result.max_lines, 10000)
 end)
 
 h.test("config deep merges", function()
 	config.reset()
 	local current = config.setup({
 		win = { width = 55 },
-		completion = { limit = 50 },
+		result = { max_lines = 500 },
 	})
 	h.eq(current.win.width, 55)
 	h.eq(current.win.position, "left")
-	h.eq(current.completion.limit, 50)
-	h.eq(current.completion.enabled, true)
+	h.eq(current.result.max_lines, 500)
 	config.reset()
 end)
 
@@ -38,7 +36,7 @@ h.test("config rejects invalid values", function()
 	h.eq(ok, false)
 	ok = pcall(config.setup, { win = { position = "top" } })
 	h.eq(ok, false)
-	ok = pcall(config.setup, { completion = { limit = -1 } })
+	ok = pcall(config.setup, { result = { max_lines = -1 } })
 	h.eq(ok, false)
 	config.reset()
 end)

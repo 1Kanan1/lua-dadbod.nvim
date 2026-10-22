@@ -11,7 +11,6 @@ local defaults = {
 	execute_on_save = true,
 	auto_execute_helpers = true,
 	bind_param_pattern = ":%w+",
-	hide_schemas = {},
 	table_helpers = {},
 	icons = {
 		expanded = "",
@@ -27,14 +26,6 @@ local defaults = {
 	},
 	result = {
 		max_lines = 10000,
-	},
-	completion = {
-		enabled = true,
-		filetypes = { "sql", "mysql", "plsql" },
-		mark = "[DB]",
-		limit = 200,
-		timeout = 3000,
-		omnifunc = false,
 	},
 	mappings = {
 		enabled = true,
@@ -78,9 +69,6 @@ local function validate(opts)
 			"sqlua.setup: bind_param_pattern must be a non-empty string"
 		)
 	end
-	if opts.hide_schemas ~= nil then
-		assert(type(opts.hide_schemas) == "table", "sqlua.setup: hide_schemas must be a table")
-	end
 	if opts.table_helpers ~= nil then
 		assert(type(opts.table_helpers) == "table", "sqlua.setup: table_helpers must be a table")
 	end
@@ -111,34 +99,6 @@ local function validate(opts)
 				type(opts.result.max_lines) == "number" and opts.result.max_lines > 0,
 				"sqlua.setup: result.max_lines must be a positive number"
 			)
-		end
-	end
-
-	if opts.completion ~= nil then
-		assert(type(opts.completion) == "table", "sqlua.setup: completion must be a table")
-		if opts.completion.enabled ~= nil then
-			assert(type(opts.completion.enabled) == "boolean", "sqlua.setup: completion.enabled must be a boolean")
-		end
-		if opts.completion.filetypes ~= nil then
-			assert(type(opts.completion.filetypes) == "table", "sqlua.setup: completion.filetypes must be a table")
-		end
-		if opts.completion.mark ~= nil then
-			assert(type(opts.completion.mark) == "string", "sqlua.setup: completion.mark must be a string")
-		end
-		if opts.completion.limit ~= nil then
-			assert(
-				type(opts.completion.limit) == "number" and opts.completion.limit > 0,
-				"sqlua.setup: completion.limit must be a positive number"
-			)
-		end
-		if opts.completion.timeout ~= nil then
-			assert(
-				type(opts.completion.timeout) == "number" and opts.completion.timeout >= 0,
-				"sqlua.setup: completion.timeout must be zero or positive"
-			)
-		end
-		if opts.completion.omnifunc ~= nil then
-			assert(type(opts.completion.omnifunc) == "boolean", "sqlua.setup: completion.omnifunc must be a boolean")
 		end
 	end
 
