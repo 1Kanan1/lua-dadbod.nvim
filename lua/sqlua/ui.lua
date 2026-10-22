@@ -162,7 +162,7 @@ function M.refresh()
 			entry.saved_expanded = old.saved_expanded
 			entry.scheme = old.scheme
 		else
-			entry.tables_expanded = true
+			entry.tables_expanded = false
 		end
 		entry.tables = entry.tables or {}
 		local parsed, adapter = db.parse(entry.url)

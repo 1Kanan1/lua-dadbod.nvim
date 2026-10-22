@@ -316,6 +316,25 @@ h.test("drawer expands a connection and opens a table", function()
 		return entry and entry.loaded
 	end), "table metadata did not load")
 
+	local visible_table = false
+	for _, row in ipairs(drawer.rows) do
+		if row.kind == "table" then
+			visible_table = true
+		end
+	end
+	h.eq(visible_table, false)
+
+	local tables_line
+	for index, row in ipairs(drawer.rows) do
+		if row.kind == "section" and row.section == "tables" then
+			tables_line = index
+			break
+		end
+	end
+	h.ok(tables_line, "Tables section not found")
+	vim.api.nvim_win_set_cursor(0, { tables_line, 0 })
+	drawer.select("edit")
+
 	lines = vim.api.nvim_buf_get_lines(drawer_buf, 0, -1, false)
 	local text = table.concat(lines, "\n")
 	h.matches(text, "Tables %(1%)")

@@ -306,6 +306,8 @@ One text buffer, one row list, rendered from scratch on each change. Expanded st
 - Icons: `󰆼` connection, `` Tables and table rows, `󰙅` Schemas and schema rows,
   `` Scratchpads, `` scratchpad rows, `󰋚` History, `·` history rows.
 - Table rows are one level deeper than the Tables header.
+- Connections start collapsed. When a connection is expanded, Tables starts
+  collapsed too. The example shows both expanded.
 - SQLite goes straight to Tables. PostgreSQL adds a Schemas level; the example
   shows `public` expanded and `pg_catalog` / `information_schema` collapsed.
 - Scratchpads is global. It lists saved query files from every connection
