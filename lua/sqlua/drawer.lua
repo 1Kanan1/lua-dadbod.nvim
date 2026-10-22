@@ -23,7 +23,7 @@ local function setup_highlights()
 
 	local groups = {
 		SqluaChevron = "Comment",
-		SqluaDb = "DiagnosticOk",
+		SqluaDb = "Normal",
 		SqluaTable = "Function",
 		SqluaSchema = "Type",
 		SqluaScratchpads = "WarningMsg",
@@ -199,6 +199,9 @@ function M.setup_keymaps(buf)
 	map("n", function()
 		M.new_scratchpad()
 	end, "New sqlua scratchpad")
+	map("e", function()
+		M.edit()
+	end, "Edit sqlua table query")
 	map("C", function()
 		M.columns()
 	end, "Show sqlua table columns")
@@ -236,7 +239,6 @@ function M.render()
 	local icons = config.get().icons or {}
 	local expanded = icons.expanded or ""
 	local collapsed = icons.collapsed or ""
-	local active = ui.active()
 
 	local rows = {}
 	local function add(row)
@@ -275,7 +277,7 @@ function M.render()
 			icon_hl = "SqluaDb",
 			label = ui.connection_label(entry.dbms, entry.name),
 			suffix = table.concat(suffix, " "),
-			marker = active == entry.key and icons.active or "",
+			marker = ui.is_activated(entry.key) and icons.active or "",
 			key = entry.key,
 		})
 
@@ -336,8 +338,6 @@ function M.render()
 		end
 	end
 
-	add({ kind = "spacer", level = 0, label = "" })
-
 	local scratchpads = ui.scratchpads()
 	add({
 		kind = "section",
@@ -368,8 +368,6 @@ function M.render()
 			end
 		end
 	end
-
-	add({ kind = "spacer", level = 0, label = "" })
 
 	local history_entries = history.list()
 	add({
@@ -468,13 +466,14 @@ function M.fetch(entry)
 	end)
 end
 
-function M.open_table(entry, table_name, helper, mode, schema)
-	local bufnr, err = query.open(entry, {
+function M.open_table(entry, table_name, helper, mode, schema, opts)
+	opts = opts or {}
+	local bufnr, err = query.open(entry, vim.tbl_extend("force", {
 		table = table_name,
 		schema = schema,
 		helper = helper,
 		split = mode == "vsplit" and "vsplit" or nil,
-	})
+	}, opts))
 	if not bufnr then
 		util.error(err)
 		return
@@ -482,6 +481,45 @@ function M.open_table(entry, table_name, helper, mode, schema)
 	if M.is_open() then
 		M.render()
 	end
+end
+
+function M.preview_table(entry, table_name, helper, schema)
+	ui.set_active(entry.key)
+	local sql, err = query.helper_sql(entry.url, {
+		table = table_name,
+		schema = schema,
+		helper = helper,
+	})
+	if not sql then
+		util.error(err or "no table helper available")
+		return
+	end
+
+	local result_buf, run_err = require("sqlua.execute").run(sql, {
+		conn = entry.url,
+		conn_key = entry.key,
+		name = entry.name,
+	})
+	if not result_buf then
+		util.error(run_err)
+	end
+end
+
+function M.edit()
+	local row = M.row()
+	if not row or row.kind ~= "table" then
+		util.warn("select a table first")
+		return
+	end
+
+	local entry = ui.get(row.key)
+	if not entry then
+		return
+	end
+	ui.set_active(entry.key)
+	M.open_table(entry, row.table, "List", "edit", row.schema, {
+		auto_execute = false,
+	})
 end
 
 function M.select(mode)
@@ -525,7 +563,11 @@ function M.select(mode)
 			return
 		end
 		ui.set_active(entry.key)
-		M.open_table(entry, row.table, "List", mode, row.schema)
+		if mode == "vsplit" then
+			M.open_table(entry, row.table, "List", "vsplit", row.schema)
+		else
+			M.preview_table(entry, row.table, "List", row.schema)
+		end
 		return
 	end
 
@@ -682,13 +724,13 @@ function M.columns()
 		return
 	end
 	if #choices == 1 then
-		M.open_table(entry, row.table, choices[1], "edit", row.schema)
+		M.preview_table(entry, row.table, choices[1], row.schema)
 		return
 	end
 
 	vim.ui.select(choices, { prompt = "Table helper" }, function(choice)
 		if choice then
-			M.open_table(entry, row.table, choice, "edit", row.schema)
+			M.preview_table(entry, row.table, choice, row.schema)
 		end
 	end)
 end
@@ -835,7 +877,7 @@ end
 
 function M.help()
 	util.notify(
-		"Enter/o open, S vsplit, n new scratchpad, C columns, A add, r rename, d delete, R refresh, H details, q close"
+		"Enter/o preview/open, e edit table query, S edit in vsplit, n new scratchpad, C columns, A add, r rename, d delete, R refresh, H details, q close"
 	)
 end
 

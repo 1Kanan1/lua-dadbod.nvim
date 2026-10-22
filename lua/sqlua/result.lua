@@ -47,10 +47,12 @@ local function show(bufnr)
 		return
 	end
 	local current = vim.api.nvim_get_current_win()
+	local current_buf = vim.api.nvim_win_get_buf(current)
 	local current_config = vim.api.nvim_win_get_config(current)
-	if current_config.relative ~= "" then
+	if current_config.relative ~= "" or vim.b[current_buf].sqlua_drawer then
 		for _, win in ipairs(vim.api.nvim_list_wins()) do
-			if vim.api.nvim_win_get_config(win).relative == "" then
+			local buf = vim.api.nvim_win_get_buf(win)
+			if vim.api.nvim_win_get_config(win).relative == "" and not vim.b[buf].sqlua_drawer then
 				vim.api.nvim_set_current_win(win)
 				break
 			end
