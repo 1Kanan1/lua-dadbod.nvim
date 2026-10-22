@@ -93,6 +93,36 @@ function M.split_lines(text)
 	return lines
 end
 
+function M.open_split(opts)
+	opts = opts or {}
+	local current = vim.api.nvim_get_current_win()
+	local current_buf = vim.api.nvim_win_get_buf(current)
+	if vim.api.nvim_win_get_config(current).relative ~= "" or vim.b[current_buf].sqlua_drawer then
+		for _, win in ipairs(vim.api.nvim_list_wins()) do
+			local buf = vim.api.nvim_win_get_buf(win)
+			if vim.api.nvim_win_get_config(win).relative == "" and not vim.b[buf].sqlua_drawer then
+				vim.api.nvim_set_current_win(win)
+				break
+			end
+		end
+	end
+
+	local command = opts.split == "vsplit" and "botright vsplit" or "botright split"
+	if not pcall(vim.cmd, command) then
+		if not pcall(vim.cmd, "tabnew") then
+			return nil
+		end
+	end
+	local target = vim.api.nvim_get_current_win()
+	if opts.bufnr then
+		vim.api.nvim_win_set_buf(target, opts.bufnr)
+	end
+	if opts.restore then
+		vim.api.nvim_set_current_win(current)
+	end
+	return target
+end
+
 function M.input(prompt, default, callback)
 	vim.ui.input({ prompt = prompt, default = default }, function(value)
 		if value ~= nil then

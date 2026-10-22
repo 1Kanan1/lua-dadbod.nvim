@@ -134,6 +134,20 @@ function M.get()
 	return current
 end
 
+function M.mappings_enabled(section)
+	local mappings = current.mappings
+	if mappings == false then
+		return false
+	end
+	if not mappings then
+		return true
+	end
+	if mappings.enabled == false then
+		return false
+	end
+	return mappings[section] ~= false
+end
+
 function M.defaults()
 	return vim.deepcopy(defaults)
 end

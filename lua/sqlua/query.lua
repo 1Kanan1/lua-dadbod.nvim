@@ -5,20 +5,6 @@ local util = require("sqlua.util")
 
 local M = {}
 
-local function mappings_enabled(section)
-	local mappings = config.get().mappings
-	if mappings == false then
-		return false
-	end
-	if not mappings then
-		return true
-	end
-	if mappings.enabled == false then
-		return false
-	end
-	return mappings[section] ~= false
-end
-
 local function connection_parts(connection)
 	if type(connection) == "string" then
 		return connection, nil
@@ -237,31 +223,12 @@ local function resolve_connection(connection)
 	return canonical, connection_name, adapter, nil, connection_url, parsed
 end
 
-local function open_window(split)
-	local current = vim.api.nvim_get_current_win()
-	local current_buf = vim.api.nvim_win_get_buf(current)
-	local current_config = vim.api.nvim_win_get_config(current)
-	if vim.b[current_buf].sqlua_drawer or current_config.relative ~= "" then
-		for _, win in ipairs(vim.api.nvim_list_wins()) do
-			local buf = vim.api.nvim_win_get_buf(win)
-			if not vim.b[buf].sqlua_drawer and vim.api.nvim_win_get_config(win).relative == "" then
-				vim.api.nvim_set_current_win(win)
-				break
-			end
-		end
-	end
-	local ok = pcall(vim.cmd, split == "vsplit" and "botright vsplit" or "botright split")
-	if not ok then
-		vim.cmd("tabnew")
-	end
-end
-
 local function setup_buffer(bufnr, adapter)
 	vim.bo[bufnr].swapfile = false
 	vim.bo[bufnr].buflisted = true
 	vim.bo[bufnr].filetype = adapter.filetype or "sql"
 
-	if mappings_enabled("query") then
+	if config.mappings_enabled("query") then
 		vim.keymap.set("n", "<Leader>S", function()
 			M.run(bufnr)
 		end, { buffer = bufnr, silent = true, desc = "Run sqlua query" })
@@ -329,7 +296,7 @@ function M.open(connection, opts)
 		return nil, write_err
 	end
 
-	open_window(opts.split)
+	util.open_split({ split = opts.split })
 	local bufnr = vim.api.nvim_create_buf(true, false)
 	vim.api.nvim_win_set_buf(0, bufnr)
 	vim.api.nvim_buf_set_name(bufnr, path)
@@ -395,7 +362,7 @@ function M.open_path(path, connection, opts)
 		return nil, err
 	end
 
-	open_window(opts.split)
+	util.open_split({ split = opts.split })
 	local bufnr = vim.fn.bufadd(path)
 	vim.fn.bufload(bufnr)
 	vim.api.nvim_win_set_buf(0, bufnr)
@@ -432,7 +399,7 @@ function M.focus(bufnr, opts)
 		end
 	end
 
-	open_window(opts.split)
+	util.open_split({ split = opts.split })
 	vim.api.nvim_win_set_buf(0, bufnr)
 	return bufnr
 end

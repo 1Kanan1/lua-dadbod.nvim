@@ -39,20 +39,6 @@ local function setup_highlights()
 	end
 end
 
-local function mappings_enabled()
-	local mappings = config.get().mappings
-	if mappings == false then
-		return false
-	end
-	if not mappings then
-		return true
-	end
-	if mappings.enabled == false then
-		return false
-	end
-	return mappings.drawer ~= false
-end
-
 local function clean_text(value)
 	local text = tostring(value or ""):gsub("\r", ""):gsub("\n", " ")
 	if vim.fn.strchars(text) > 300 then
@@ -174,7 +160,7 @@ function M.toggle()
 end
 
 function M.setup_keymaps(buf)
-	if not mappings_enabled() then
+	if not config.mappings_enabled("drawer") then
 		return
 	end
 

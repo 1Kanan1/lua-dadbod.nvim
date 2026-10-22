@@ -6,20 +6,6 @@ local M = {}
 local next_id = 1
 local jobs = {}
 
-local function mappings_enabled()
-	local mappings = config.get().mappings
-	if mappings == false then
-		return false
-	end
-	if not mappings then
-		return true
-	end
-	if mappings.enabled == false then
-		return false
-	end
-	return mappings.result ~= false
-end
-
 local function set_lines(bufnr, lines)
 	if not vim.api.nvim_buf_is_valid(bufnr) then
 		return
@@ -46,28 +32,7 @@ local function show(bufnr)
 	if find_window(bufnr) then
 		return
 	end
-	local current = vim.api.nvim_get_current_win()
-	local current_buf = vim.api.nvim_win_get_buf(current)
-	local current_config = vim.api.nvim_win_get_config(current)
-	if current_config.relative ~= "" or vim.b[current_buf].sqlua_drawer then
-		for _, win in ipairs(vim.api.nvim_list_wins()) do
-			local buf = vim.api.nvim_win_get_buf(win)
-			if vim.api.nvim_win_get_config(win).relative == "" and not vim.b[buf].sqlua_drawer then
-				vim.api.nvim_set_current_win(win)
-				break
-			end
-		end
-	end
-	local ok = pcall(vim.cmd, "botright split")
-	if not ok then
-		ok = pcall(vim.cmd, "tabnew")
-		if not ok then
-			return
-		end
-	end
-	local target = vim.api.nvim_get_current_win()
-	vim.api.nvim_win_set_buf(target, bufnr)
-	vim.api.nvim_set_current_win(current)
+	util.open_split({ bufnr = bufnr, restore = true })
 end
 
 local function header(bufnr)
@@ -267,7 +232,7 @@ function M.rerun(bufnr)
 end
 
 function M.keymaps(bufnr)
-	if not mappings_enabled() then
+	if not config.mappings_enabled("result") then
 		return
 	end
 

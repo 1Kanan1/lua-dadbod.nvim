@@ -16,11 +16,7 @@ local function remove_global_mappings()
 end
 
 function M.setup_mappings()
-	local mappings = require("sqlua.config").get().mappings
-	if
-		mappings == false
-		or (type(mappings) == "table" and (mappings.enabled == false or mappings.global == false))
-	then
+	if not require("sqlua.config").mappings_enabled("global") then
 		remove_global_mappings()
 		return
 	end
