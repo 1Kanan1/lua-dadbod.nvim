@@ -31,7 +31,7 @@ h.test("helper SQL uses identifiers and literals", function()
 	h.matches(columns, "pragma_table_info%('users'%)")
 
 	local list = h.ok(query.helper_sql("sqlite::memory:", { table = "users", helper = "List" }))
-	h.matches(list, 'from "users" limit 200')
+	h.matches(list, 'from "users" limit 50')
 end)
 
 h.test("resolve bind values without prompting", function()

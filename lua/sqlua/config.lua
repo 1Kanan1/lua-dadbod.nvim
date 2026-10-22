@@ -7,7 +7,7 @@ local defaults = {
 		width = 40,
 		position = "left",
 	},
-	default_query = "select * from {optional_schema}{table} limit 200;",
+	default_query = "select * from {optional_schema}{table} limit 50;",
 	execute_on_save = true,
 	auto_execute_helpers = true,
 	bind_param_pattern = ":%w+",
@@ -38,6 +38,7 @@ local defaults = {
 	},
 	mappings = {
 		enabled = true,
+		global = true,
 		drawer = true,
 		query = true,
 		result = true,
@@ -150,7 +151,7 @@ local function validate(opts)
 			if opts.mappings.enabled ~= nil then
 				assert(type(opts.mappings.enabled) == "boolean", "sqlua.setup: mappings.enabled must be a boolean")
 			end
-			for _, key in ipairs({ "drawer", "query", "result" }) do
+			for _, key in ipairs({ "global", "drawer", "query", "result" }) do
 				if opts.mappings[key] ~= nil then
 					assert(
 						type(opts.mappings[key]) == "boolean",

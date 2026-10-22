@@ -49,6 +49,10 @@ local function effective_helpers(adapter)
 		end
 	end
 
+	if helpers.List == nil and custom.List == nil then
+		helpers.List = config.get().default_query
+	end
+
 	return helpers
 end
 

@@ -115,7 +115,7 @@ h.test("query buffer builds helper SQL", function()
 	})
 	bufnr = h.ok(bufnr, err)
 	local text = table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), "\n")
-	h.matches(text, 'select %* from "users" limit 200')
+	h.matches(text, 'select %* from "users" limit 50')
 end)
 
 h.test("execute.parse_args", function()

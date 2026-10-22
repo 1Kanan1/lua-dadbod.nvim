@@ -57,7 +57,6 @@ end)
 
 h.test("sqlite helpers", function()
 	local adapter = h.ok(adapters.get("sqlite"))
-	h.matches(adapter.helpers.List, "limit 200")
 	h.matches(adapter.helpers.Columns, "pragma_table_info")
 end)
 

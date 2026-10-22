@@ -8,7 +8,6 @@ local M = {
 	quote = { '"', '"' },
 	filetype = "sql",
 	helpers = {
-		List = "select * from {optional_schema}{table} limit 200",
 		Columns = 'select name, type, "notnull", dflt_value, pk from pragma_table_info({table_lit})',
 	},
 }
