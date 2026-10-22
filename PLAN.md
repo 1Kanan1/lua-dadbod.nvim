@@ -281,16 +281,16 @@ One text buffer, one row list, rendered from scratch on each change. Expanded st
 
 ```
  󰆼 sqlite/test ●
-    Tables (1)
-     users
+   󰓫 Tables (1)
+    󰓫 users
  󰆼 postgres/prod
    󰙅 Schemas (3)
      󰙅 public
-        Tables (1)
-         users
+       󰓫 Tables (1)
+        󰓫 users
      󰙅 pg_catalog
      󰙅 information_schema
-  Scratchpads (1)
+ 󰉋 Scratchpads (1)
    daily-report (sqlite/test)
  󰋚 History (1)
   · select * from users (sqlite/test, 14:32)
@@ -303,8 +303,8 @@ One text buffer, one row list, rendered from scratch on each change. Expanded st
   when only one exists.
 - `dbms/db` is used only when more than one DBMS is configured. With a single
   DBMS, labels are just `test` or `prod`.
-- Icons: `󰆼` connection, `` Tables and table rows, `󰙅` Schemas and schema rows,
-  `` Scratchpads, `` scratchpad rows, `󰋚` History, `·` history rows.
+- Icons: `󰆼` connection, `󰓫` Tables and table rows, `󰙅` Schemas and schema rows,
+  `󰉋` Scratchpads, `` scratchpad rows, `󰋚` History, `·` history rows.
 - Table rows are one level deeper than the Tables header.
 - Connections start collapsed. When a connection is expanded, Tables starts
   collapsed too. The example shows both expanded.
@@ -452,9 +452,9 @@ require("sqlua").setup({
     expanded = "",
     collapsed = "",
     db = "󰆼",
-    table = "",
+    table = "󰓫",
     schema = "󰙅",
-    scratchpads = "",
+    scratchpads = "󰉋",
     scratchpad = "",
     history = "󰋚",
     history_entry = "·",
