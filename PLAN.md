@@ -277,31 +277,37 @@ One table keyed by resolved connection URL:
 
 ### Drawer
 
-One text buffer, one row list, rendered from scratch on each change.
+One text buffer, one row list, rendered from scratch on each change. Expanded state:
 
 ```
-▾ 󰆼 sqlite/test ●
-  ▾  Tables (2)
-       users
-       orders
-▾ 󰆼 postgres/prod
-  ▾ 󰙅 Schemas (3)
-      󰙅 public
-      󰙅 information_schema
-      󰙅 pg_catalog
-▾  Scratchpads (2)
-     daily-report (sqlite/test)
-     users (sqlite/test) *
-▾ 󰋚 History (3)
-    · select * from users (sqlite/test, 14:32)
+ 󰆼 sqlite/test ●
+    Tables (1)
+     users
+ 󰆼 postgres/prod
+   󰙅 Schemas (3)
+     󰙅 public
+        Tables (1)
+         users
+     󰙅 pg_catalog
+     󰙅 information_schema
+  Scratchpads (1)
+   daily-report (sqlite/test)
+ 󰋚 History (1)
+  · select * from users (sqlite/test, 14:32)
 ```
 
-- `●` marks the active connection. Expanding a connection, opening a table, or
-  pressing `n` on a connection makes it active.
+- `●` marks activated connections. A connection starts inactive. Entering a
+  connection or one of its tables, or pressing `n` on it, activates it. It stays
+  activated and keeps its marker for the session. The last activated connection
+  is the target for new scratchpads. No connection is active on first open, even
+  when only one exists.
 - `dbms/db` is used only when more than one DBMS is configured. With a single
   DBMS, labels are just `test` or `prod`.
 - Icons: `󰆼` connection, `` Tables and table rows, `󰙅` Schemas and schema rows,
   `` Scratchpads, `` scratchpad rows, `󰋚` History, `·` history rows.
+- Table rows are one level deeper than the Tables header.
+- SQLite goes straight to Tables. PostgreSQL adds a Schemas level; the example
+  shows `public` expanded and `pg_catalog` / `information_schema` collapsed.
 - Scratchpads is global. It lists saved query files from every connection
   folder plus open query buffers. Labels show the connection in parentheses.
   Unsaved or modified scratchpads are marked `*`. A saved file that is open in
@@ -313,12 +319,13 @@ One text buffer, one row list, rendered from scratch on each change.
   shows the result. `q` or `<Esc>` closes without running.
 - There is no `+ New scratchpad` row. `n` creates a scratchpad:
   on a connection, table, scratchpad, or history row it uses that row's
-  connection; on a section it uses the active connection; if none is active it
-  prompts once. A single configured connection is active automatically.
+  connection; on a section it uses the last activated connection. If none is
+  active it uses the only configured connection or prompts.
 - Empty states: `No scratchpads. Press n to create one.` and `No history yet.`
 - Scratchpads and History start collapsed on the first drawer open. Their counts
   stay visible while collapsed.
-- Sections are separated by a blank line.
+- Connections, Scratchpads, and History are adjacent, with no blank lines
+  between them.
 - There is no `+ Add connection` row. With no connections, the drawer shows
   `No connections. Press A to add one.`
 - Drawer colors come from highlight groups linked to the active colorscheme:
@@ -326,11 +333,12 @@ One text buffer, one row list, rendered from scratch on each change.
   `SqluaHistory`, `SqluaHistoryEntry`, `SqluaChevron`, `SqluaCount`,
   `SqluaActive`, and `SqluaHelp`. Users can override any of them.
 
-- `<CR>` / `o`: open or toggle.
-- `S`: open in a vertical split.
+- `<CR>` / `o`: preview a table result, or open/toggle other rows.
+- `e`: open an editable `List` query for the selected table without running it.
+- `S`: open an editable query in a vertical split.
 - `n`: new scratchpad.
-- `C`: run the `Columns` query on a table row. If user helpers are configured,
-  open `vim.ui.select` with `Columns` plus those helpers first.
+- `C`: preview the `Columns` result on a table row. If user helpers are
+  configured, open `vim.ui.select` with `Columns` plus those helpers first.
 - `A`: add connection.
 - `r`: rename a saved scratchpad. Unsaved scratchpads must be saved first.
 - `d`: delete a saved scratchpad or file connection, wipe an unsaved scratchpad,
@@ -341,15 +349,23 @@ One text buffer, one row list, rendered from scratch on each change.
 - `?`: print a short key reminder through `vim.notify`.
 
 - Connection rows show a loading marker while metadata is fetching.
-- `Enter` on a table opens a query buffer with the `List` SQL and runs it
-  immediately. `C` does the same with the `Columns` SQL. If user helpers are
-  configured, `C` opens `vim.ui.select` first and runs the chosen helper after
-  selection.
-- Both auto-run paths are controlled by `auto_execute_helpers = true`. Set it
-  to `false` to only open the SQL and wait for `:w` or `<Leader>S`.
+- `Enter` on a table runs `List` and opens only the result buffer, with no query
+  buffer. `C` does the same for `Columns`. `e` opens the SQL when you want to
+  edit it.
+- `S` uses `auto_execute_helpers`; `e` always opens the SQL without running.
+  Enter and `C` are always result-only previews.
+- `List` defaults to 50 rows through `default_query`.
 - No helper submenu, no per-connection query section, and no `:SqluaBuffers`
   picker.
 - No sibling navigation, help pane, result list, or progress animation.
+
+Default global maps, installed by `setup()`:
+- `<leader>Do` open drawer
+- `<leader>Dt` toggle drawer
+- `<leader>Dc` close drawer
+- `<leader>Da` add connection
+- `<leader>Df` attach current buffer
+- `<leader>Dx` clear cache
 
 ### Query buffers
 
@@ -424,7 +440,7 @@ require("sqlua").setup({
   save_location = vim.fn.stdpath("data") .. "/sqlua",
   tmp_location = vim.fn.stdpath("cache") .. "/sqlua/queries",
   win = { width = 40, position = "left" },
-  default_query = "select * from {optional_schema}{table} limit 200;",
+  default_query = "select * from {optional_schema}{table} limit 50;",
   execute_on_save = true,
   auto_execute_helpers = true,
   bind_param_pattern = ":%w+",
@@ -453,6 +469,7 @@ require("sqlua").setup({
   },
   mappings = {
     enabled = true,
+    global = true,
     drawer = true,
     query = true,
     result = true,
@@ -670,9 +687,10 @@ Copy them into `queries/<connection-key-slug>/` or keep using the old folder as
 5. Drawer: connection trees plus global Scratchpads and History. No
    per-connection query rows, helper submenu, `:SqluaBuffers` picker, or
    `+ Add connection` row. Scratchpads and History default to collapsed.
-   Sections are separated by a blank line. `A` adds a connection.
-   Table `Enter` runs `List`; `C` runs `Columns`. Both run immediately by
-   default. If user helpers are configured, `C` opens a picker first.
+   A blank line separates connections from Scratchpads; Scratchpads and History
+   are adjacent. `A` adds a connection.
+   Table `Enter` previews `List` as a result only. `e` opens the editable SQL.
+   `C` previews `Columns` as a result only, or opens a helper picker first.
 6. Table helpers: `List` plus `Columns` for all core adapters. Indexes, foreign
    keys, primary keys, constraints, and describe live in the docs as
    `table_helpers` snippets.
@@ -681,9 +699,11 @@ Copy them into `queries/<connection-key-slug>/` or keep using the old folder as
 8. Scratchpads: saved files plus open query buffers, listed globally with the
    connection in parentheses. `*` marks unsaved or modified. `n` creates one;
    there is no `+ New scratchpad` row.
-9. Active connection: set by expanding a connection, opening a table, or
-   pressing `n` on a connection. It is marked `●`. A single connection is
-   active automatically; otherwise `n` prompts once when nothing is active.
+9. Active connection: connections start inactive, even when only one exists.
+   Entering a connection or table, or pressing `n` on it, activates it. Every
+   activated connection keeps its `●` for the session. The last activated one
+   is the target for new scratchpads. If none is active, `n` uses the only
+   connection or prompts.
 10. History: session-only, newest first, capped at 50, deduplicated by
     connection plus SQL. `Enter` opens a floating preview; `R` reruns directly
     from the stored entry and closes the preview; `d` removes an entry.
@@ -692,7 +712,11 @@ Copy them into `queries/<connection-key-slug>/` or keep using the old folder as
     history.
 12. Icons and colors: Nerd Font glyphs from the config, with `icons = false`
     disabling type icons. Colors use `Sqlua*` highlight groups linked to the
-    colorscheme, so no palette is hardcoded.
+    colorscheme, so no palette is hardcoded. The database icon uses `Normal`
+    so it is white/silver, not green.
+13. Default global maps installed by `setup()`: `<leader>Do` open,
+    `<leader>Dt` toggle, `<leader>Dc` close, `<leader>Da` add connection,
+    `<leader>Df` attach buffer, `<leader>Dx` clear cache.
 
 ## Phase 1 checkpoint
 
@@ -773,9 +797,10 @@ Verification:
 nvim --headless -u NONE -c "lua dofile('tests/run.lua')" -c "qa!"
 ```
 
-Result: 57 passed, 0 failed. The drawer test discovers a `g:dbs` connection,
-expands it, loads tables asynchronously, opens a table query, waits for its
-result, and opens the `Columns` helper. Separate tests cover active connections,
-`dbms/db` labels, scratchpads, and history preview plus rerun.
+Result: 58 passed, 0 failed. The drawer test discovers a `g:dbs` connection,
+expands it, loads tables asynchronously, previews a table result, opens the
+`Columns` preview, and opens the editable query. Separate tests cover active
+connections, `dbms/db` labels, scratchpads, history preview plus rerun, and the
+global mappings.
 
 Not started: completion.
