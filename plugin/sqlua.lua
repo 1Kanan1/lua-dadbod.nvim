@@ -55,47 +55,13 @@ end, {
 })
 
 command("SqluaAddConnection", function()
-	local ui = require("sqlua.ui")
-	ui.add_connection(nil, function()
-		local drawer = require("sqlua.drawer")
-		if drawer.is_open() then
-			drawer.render()
-		end
-	end)
+	require("sqlua").add_connection()
 end, {
 	desc = "Add a sqlua connection",
 })
 
 command("SqluaFindBuffer", function()
-	local ui = require("sqlua.ui")
-	local query = require("sqlua.query")
-	local util = require("sqlua.util")
-	local bufnr = vim.api.nvim_get_current_buf()
-	local connections = ui.connections()
-
-	if #connections == 0 then
-		error("no connections configured", 0)
-	end
-	if #connections == 1 then
-		local entry = connections[1]
-		ui.set_active(entry.key)
-		local attached, err = query.attach(entry, bufnr)
-		if not attached then
-			error(err, 0)
-		end
-		util.notify("attached buffer to " .. entry.name)
-		return
-	end
-
-	ui.pick("Attach buffer to connection", function(entry)
-		ui.set_active(entry.key)
-		local attached, err = query.attach(entry, bufnr)
-		if not attached then
-			util.error(err)
-			return
-		end
-		util.notify("attached buffer to " .. entry.name)
-	end)
+	require("sqlua").attach()
 end, {
 	desc = "Attach the current buffer to a sqlua connection",
 })

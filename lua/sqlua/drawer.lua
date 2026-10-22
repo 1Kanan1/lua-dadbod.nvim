@@ -12,6 +12,22 @@ local M = {
 	history_expanded = false,
 }
 
+local keymaps = {
+	{ "<CR>", function() M.select("edit") end, "preview/open" },
+	{ "o", function() M.select("edit") end, "preview/open" },
+	{ "S", function() M.select("vsplit") end, "open in vsplit" },
+	{ "n", function() M.new_scratchpad() end, "new scratchpad" },
+	{ "e", function() M.edit() end, "edit table query" },
+	{ "C", function() M.columns() end, "columns" },
+	{ "A", function() M.add_connection() end, "add connection" },
+	{ "r", function() M.rename() end, "rename" },
+	{ "d", function() M.delete() end, "delete" },
+	{ "R", function() M.refresh() end, "refresh" },
+	{ "H", function() M.toggle_details() end, "details" },
+	{ "q", function() M.close() end, "close" },
+	{ "?", function() M.help() end, "help" },
+}
+
 local highlight_ns = vim.api.nvim_create_namespace("sqlua_drawer")
 local highlights_ready = false
 
@@ -164,54 +180,133 @@ function M.setup_keymaps(buf)
 		return
 	end
 
-	local function map(lhs, callback, desc)
-		vim.keymap.set("n", lhs, callback, {
+	for _, item in ipairs(keymaps) do
+		vim.keymap.set("n", item[1], item[2], {
 			buffer = buf,
 			silent = true,
 			nowait = true,
-			desc = desc,
+			desc = "sqlua: " .. item[3],
 		})
 	end
+end
 
-	map("<CR>", function()
-		M.select("edit")
-	end, "Open sqlua drawer item")
-	map("o", function()
-		M.select("edit")
-	end, "Open sqlua drawer item")
-	map("S", function()
-		M.select("vsplit")
-	end, "Open sqlua drawer item in a vertical split")
-	map("n", function()
-		M.new_scratchpad()
-	end, "New sqlua scratchpad")
-	map("e", function()
-		M.edit()
-	end, "Edit sqlua table query")
-	map("C", function()
-		M.columns()
-	end, "Show sqlua table columns")
-	map("A", function()
-		M.add_connection()
-	end, "Add sqlua connection")
-	map("r", function()
-		M.rename()
-	end, "Rename sqlua scratchpad")
-	map("d", function()
-		M.delete()
-	end, "Delete sqlua item")
-	map("R", function()
-		M.refresh()
-	end, "Refresh sqlua connections")
-	map("H", function()
-		M.toggle_details()
-	end, "Toggle sqlua connection details")
-	map("q", function()
-		M.close()
-	end, "Close sqlua drawer")
-	map("?", function()
-		M.help()
-	end, "Show sqlua drawer help")
+local function add_section(add, opts)
+	local icons = opts.icons or {}
+	local expanded = icons.expanded or ""
+	local collapsed = icons.collapsed or ""
+
+	add({
+		kind = "section",
+		section = opts.section,
+		level = opts.level,
+		icon = opts.expanded and expanded or collapsed,
+		type_icon = opts.type_icon,
+		icon_hl = opts.icon_hl,
+		label = opts.label,
+		suffix = opts.suffix,
+		key = opts.key,
+	})
+
+	if opts.expanded and opts.body then
+		opts.body()
+	end
+end
+
+local function add_list_section(add, opts)
+	add_section(add, {
+		section = opts.section,
+		level = opts.level,
+		expanded = opts.expanded,
+		icons = opts.icons,
+		type_icon = opts.type_icon,
+		icon_hl = opts.icon_hl,
+		label = opts.label,
+		suffix = opts.suffix,
+		body = function()
+			if #opts.items == 0 then
+				add({ kind = "help", level = opts.level + 1, label = opts.empty, label_hl = "SqluaHelp" })
+				return
+			end
+			for _, item in ipairs(opts.items) do
+				add(opts.row(item))
+			end
+		end,
+	})
+end
+
+local function add_connection_rows(add, entry, icons)
+	local expanded = icons.expanded or ""
+	local collapsed = icons.collapsed or ""
+	local suffix = {}
+	if M.show_details then
+		local detail = entry.source
+		if not ui.has_multiple_dbms() then
+			detail = (entry.dbms or "?") .. " - " .. detail
+		end
+		suffix[#suffix + 1] = "(" .. detail .. ")"
+	end
+	if entry.error then
+		suffix[#suffix + 1] = "✕"
+	elseif entry.loading then
+		suffix[#suffix + 1] = "…"
+	end
+
+	add({
+		kind = "conn",
+		level = 0,
+		icon = entry.expanded and expanded or collapsed,
+		type_icon = icons.db,
+		icon_hl = "SqluaDb",
+		label = ui.connection_label(entry.dbms, entry.name),
+		suffix = table.concat(suffix, " "),
+		marker = ui.is_activated(entry.key) and icons.active or "",
+		key = entry.key,
+	})
+
+	if not entry.expanded then
+		return
+	end
+
+	local tables = entry.tables or {}
+	add_section(add, {
+		section = "tables",
+		level = 1,
+		expanded = entry.tables_expanded,
+		icons = icons,
+		type_icon = icons.table,
+		icon_hl = "SqluaTable",
+		label = "Tables",
+		suffix = entry.loading and "(loading...)" or ("(" .. #tables .. ")"),
+		key = entry.key,
+		body = function()
+			if entry.error then
+				add({
+					kind = "help",
+					level = 2,
+					icon = "!",
+					label = entry.error,
+					label_hl = "DiagnosticError",
+					key = entry.key,
+				})
+			elseif entry.loading then
+				add({ kind = "help", level = 2, label = "loading...", label_hl = "SqluaHelp", key = entry.key })
+			elseif #tables == 0 then
+				add({ kind = "help", level = 2, label = "(no tables)", label_hl = "SqluaHelp", key = entry.key })
+			else
+				for _, table_name in ipairs(tables) do
+					add({
+						kind = "table",
+						level = 2,
+						type_icon = icons.table,
+						icon_hl = "SqluaTable",
+						label = table_name,
+						table = table_name,
+						key = entry.key,
+					})
+				end
+			end
+		end,
+	})
 end
 
 function M.render()
@@ -223,9 +318,6 @@ function M.render()
 
 	local entries = ui.connections()
 	local icons = config.get().icons or {}
-	local expanded = icons.expanded or ""
-	local collapsed = icons.collapsed or ""
-
 	local rows = {}
 	local function add(row)
 		rows[#rows + 1] = row
@@ -241,153 +333,60 @@ function M.render()
 	end
 
 	for _, entry in ipairs(entries) do
-		local suffix = {}
-		if M.show_details then
-			local detail = entry.source
-			if not ui.has_multiple_dbms() then
-				detail = (entry.dbms or "?") .. " - " .. detail
-			end
-			suffix[#suffix + 1] = "(" .. detail .. ")"
-		end
-		if entry.error then
-			suffix[#suffix + 1] = "✕"
-		elseif entry.loading then
-			suffix[#suffix + 1] = "…"
-		end
-
-		add({
-			kind = "conn",
-			level = 0,
-			icon = entry.expanded and expanded or collapsed,
-			type_icon = icons.db,
-			icon_hl = "SqluaDb",
-			label = ui.connection_label(entry.dbms, entry.name),
-			suffix = table.concat(suffix, " "),
-			marker = ui.is_activated(entry.key) and icons.active or "",
-			key = entry.key,
-		})
-
-		if entry.expanded then
-			local tables = entry.tables or {}
-			add({
-				kind = "section",
-				section = "tables",
-				level = 1,
-				icon = entry.tables_expanded and expanded or collapsed,
-				type_icon = icons.table,
-				icon_hl = "SqluaTable",
-				label = "Tables",
-				suffix = entry.loading and "(loading...)" or ("(" .. #tables .. ")"),
-				key = entry.key,
-			})
-
-			if entry.tables_expanded then
-				if entry.error then
-					add({
-						kind = "help",
-						level = 2,
-						icon = "!",
-						label = entry.error,
-						label_hl = "DiagnosticError",
-						key = entry.key,
-					})
-				elseif entry.loading then
-					add({
-						kind = "help",
-						level = 2,
-						label = "loading...",
-						label_hl = "SqluaHelp",
-						key = entry.key,
-					})
-				elseif #tables == 0 then
-					add({
-						kind = "help",
-						level = 2,
-						label = "(no tables)",
-						label_hl = "SqluaHelp",
-						key = entry.key,
-					})
-				else
-					for _, table_name in ipairs(tables) do
-						add({
-							kind = "table",
-							level = 2,
-							type_icon = icons.table,
-							icon_hl = "SqluaTable",
-							label = table_name,
-							table = table_name,
-							key = entry.key,
-						})
-					end
-				end
-			end
-		end
+		add_connection_rows(add, entry, icons)
 	end
 
 	local scratchpads = ui.scratchpads()
-	add({
-		kind = "section",
+	add_list_section(add, {
 		section = "scratchpads",
 		level = 0,
-		icon = M.scratchpads_expanded and expanded or collapsed,
+		expanded = M.scratchpads_expanded,
+		icons = icons,
 		type_icon = icons.scratchpads,
 		icon_hl = "SqluaScratchpads",
 		label = "Scratchpads",
 		suffix = "(" .. #scratchpads .. ")",
+		items = scratchpads,
+		empty = #entries == 0 and "No scratchpads." or "No scratchpads. Press n to create one.",
+		row = function(item)
+			local mark = (item.unsaved or item.modified) and " *" or ""
+			return {
+				kind = "scratch",
+				level = 1,
+				type_icon = icons.scratchpad,
+				icon_hl = "SqluaScratchpad",
+				label = item.label,
+				suffix = "(" .. item.conn_label .. ")" .. mark,
+				item = item,
+			}
+		end,
 	})
-	if M.scratchpads_expanded then
-		if #scratchpads == 0 then
-			local hint = #entries == 0 and "No scratchpads." or "No scratchpads. Press n to create one."
-			add({ kind = "help", level = 1, label = hint, label_hl = "SqluaHelp" })
-		else
-			for _, item in ipairs(scratchpads) do
-				local mark = (item.unsaved or item.modified) and " *" or ""
-				add({
-					kind = "scratch",
-					level = 1,
-					type_icon = icons.scratchpad,
-					icon_hl = "SqluaScratchpad",
-					label = item.label,
-					suffix = "(" .. item.conn_label .. ")" .. mark,
-					item = item,
-				})
-			end
-		end
-	end
 
 	local history_entries = history.list()
-	add({
-		kind = "section",
+	add_list_section(add, {
 		section = "history",
 		level = 0,
-		icon = M.history_expanded and expanded or collapsed,
+		expanded = M.history_expanded,
+		icons = icons,
 		type_icon = icons.history,
 		icon_hl = "SqluaHistory",
 		label = "History",
 		suffix = "(" .. #history_entries .. ")",
+		items = history_entries,
+		empty = "No history yet.",
+		row = function(entry)
+			local conn_label = ui.connection_label(entry.dbms, entry.name)
+			return {
+				kind = "history",
+				level = 1,
+				type_icon = icons.history_entry or "·",
+				icon_hl = "SqluaHistoryEntry",
+				label = history.preview_text(entry),
+				suffix = "(" .. conn_label .. ", " .. os.date("%H:%M", entry.time or os.time()) .. ")",
+				entry = entry,
+			}
+		end,
 	})
-	if M.history_expanded then
-		if #history_entries == 0 then
-			add({ kind = "help", level = 1, label = "No history yet.", label_hl = "SqluaHelp" })
-		else
-			for _, entry in ipairs(history_entries) do
-				local conn_label = ui.connection_label(entry.dbms, entry.name)
-				add({
-					kind = "history",
-					level = 1,
-					type_icon = icons.history_entry or "·",
-					icon_hl = "SqluaHistoryEntry",
-					label = history.preview_text(entry),
-					suffix = "("
-						.. conn_label
-						.. ", "
-						.. os.date("%H:%M", entry.time or os.time())
-						.. ")",
-					entry = entry,
-				})
-			end
-		end
-	end
 
 	local lines = {}
 	local highlights = {}
@@ -750,11 +749,7 @@ function M.refresh()
 end
 
 function M.add_connection()
-	ui.add_connection(nil, function()
-		if M.is_open() then
-			M.render()
-		end
-	end)
+	require("sqlua").add_connection()
 end
 
 function M.rename()
@@ -794,32 +789,10 @@ function M.delete()
 			return
 		end
 
-		local bufnr = item.kind == "buffer" and item.bufnr or nil
-		if item.kind == "file" then
-			if vim.fn.delete(item.path) ~= 0 then
-				util.error("cannot delete " .. item.path)
-				return
-			end
-			local existing = vim.fn.bufnr(item.path)
-			if existing == -1 then
-				existing = vim.fn.bufnr(vim.fn.resolve(item.path))
-			end
-			bufnr = existing ~= -1 and existing or nil
-		elseif item.unsaved and item.path then
-			local tmp = vim.fn.resolve(vim.fn.fnamemodify(config.get().tmp_location, ":p"))
-			local path = vim.fn.resolve(vim.fn.fnamemodify(item.path, ":p"))
-			if vim.startswith(path, tmp) then
-				vim.fn.delete(path)
-			end
-		elseif item.kind == "buffer" and item.path then
-			if vim.fn.delete(item.path) ~= 0 then
-				util.error("cannot delete " .. item.path)
-				return
-			end
-		end
-
-		if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
-			vim.api.nvim_buf_delete(bufnr, { force = true })
+		local ok, err = query.delete_scratchpad(item)
+		if not ok then
+			util.error(err)
+			return
 		end
 		M.render()
 		return
@@ -862,9 +835,11 @@ function M.toggle_details()
 end
 
 function M.help()
-	util.notify(
-		"Enter/o preview/open, e edit table query, S edit in vsplit, n new scratchpad, C columns, A add, r rename, d delete, R refresh, H details, q close"
-	)
+	local parts = {}
+	for _, item in ipairs(keymaps) do
+		parts[#parts + 1] = item[1] .. " " .. item[3]
+	end
+	util.notify(table.concat(parts, ", "))
 end
 
 return M

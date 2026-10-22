@@ -222,6 +222,35 @@ h.test("scratchpads include saved files and open buffers", function()
 	restore_globals(previous, directory)
 end)
 
+h.test("query deletes a saved scratchpad", function()
+	local previous = {
+		db = vim.g.db,
+		dbs = vim.g.dbs,
+		url = vim.env.SQLUA_URL,
+		name = vim.env.SQLUA_NAME,
+		save = config.get().save_location,
+		tmp = config.get().tmp_location,
+	}
+	local directory = vim.fn.tempname()
+	config.setup({
+		save_location = directory .. "/sqlua",
+		tmp_location = directory .. "/queries",
+	})
+	vim.g.dbs = { test = "sqlite::memory:" }
+	ui.reset()
+
+	local saved_dir = ui.saved_dir(ui.get("test_g:dbs"))
+	util.ensure_dir(saved_dir)
+	local path = saved_dir .. "/saved.sql"
+	vim.fn.writefile({ "select 1;" }, path)
+
+	local ok, err = query.delete_scratchpad({ kind = "file", path = path })
+	h.ok(ok, err)
+	h.eq(vim.fn.filereadable(path), 0)
+
+	restore_globals(previous, directory)
+end)
+
 h.test("n creates a scratchpad for the active connection", function()
 	pcall(vim.cmd, "silent! only")
 	local previous = {

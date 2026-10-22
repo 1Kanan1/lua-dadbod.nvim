@@ -559,6 +559,39 @@ function M.rename_file(old_path, new_name)
 	return new_path
 end
 
+function M.delete_scratchpad(item)
+	if not item then
+		return nil, "scratchpad not found"
+	end
+
+	local bufnr = item.kind == "buffer" and item.bufnr or nil
+	if item.kind == "file" then
+		if not item.path or vim.fn.delete(item.path) ~= 0 then
+			return nil, "cannot delete " .. tostring(item.path)
+		end
+		local existing = vim.fn.bufnr(item.path)
+		if existing == -1 then
+			existing = vim.fn.bufnr(vim.fn.resolve(item.path))
+		end
+		bufnr = existing ~= -1 and existing or nil
+	elseif item.unsaved and item.path then
+		local tmp = vim.fn.resolve(vim.fn.fnamemodify(config.get().tmp_location, ":p"))
+		local path = vim.fn.resolve(vim.fn.fnamemodify(item.path, ":p"))
+		if vim.startswith(path, tmp) then
+			vim.fn.delete(path)
+		end
+	elseif item.kind == "buffer" and item.path then
+		if vim.fn.delete(item.path) ~= 0 then
+			return nil, "cannot delete " .. item.path
+		end
+	end
+
+	if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
+		vim.api.nvim_buf_delete(bufnr, { force = true })
+	end
+	return true
+end
+
 function M.save(bufnr)
 	bufnr = bufnr or vim.api.nvim_get_current_buf()
 	local meta = vim.b[bufnr].sqlua

@@ -71,7 +71,15 @@ function M.close()
 end
 
 function M.add_connection(opts, callback)
-	return require("sqlua.ui").add_connection(opts, callback)
+	return require("sqlua.ui").add_connection(opts, function()
+		local drawer = require("sqlua.drawer")
+		if drawer.is_open() then
+			drawer.render()
+		end
+		if callback then
+			callback()
+		end
+	end)
 end
 
 function M.attach(bufnr)
