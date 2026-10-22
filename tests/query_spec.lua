@@ -57,6 +57,12 @@ h.test("save a query to disk", function()
 	h.eq(vim.fn.filereadable(path), 1)
 	h.matches(path, "my query%.sql$")
 
+	local renamed, rename_err = query.rename_file(path, "renamed query")
+	renamed = h.ok(renamed, rename_err)
+	h.eq(vim.fn.filereadable(path), 0)
+	h.eq(vim.fn.filereadable(renamed), 1)
+	h.eq(vim.api.nvim_buf_get_name(bufnr), renamed)
+
 	vim.fn.delete(save_location, "rf")
 	config.setup({ save_location = previous })
 end)

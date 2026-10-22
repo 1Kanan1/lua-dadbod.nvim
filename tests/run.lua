@@ -11,6 +11,14 @@ package.path = table.concat({
 vim.opt.runtimepath:append(root)
 vim.cmd("runtime plugin/sqlua.lua")
 
+vim.notify = function(message, level)
+	if level == vim.log.levels.ERROR then
+		io.write("notify: " .. tostring(message) .. "\n")
+	end
+end
+
+vim.o.hidden = true
+
 local harness = require("tests.harness")
 
 require("tests.url_spec")
@@ -18,6 +26,8 @@ require("tests.adapter_spec")
 require("tests.job_spec")
 require("tests.query_spec")
 require("tests.sqlite_spec")
+require("tests.history_spec")
+require("tests.ui_spec")
 require("tests.config_spec")
 
 harness.run()
