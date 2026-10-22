@@ -39,6 +39,10 @@ h.test("execute.run creates a result buffer", function()
 	h.eq(meta.code, 0)
 	h.matches(result_text(result_buf), "1")
 	h.eq(vim.b[source].sqlua_result_buf, result_buf)
+	local result_win = vim.fn.win_findbuf(result_buf)[1]
+	h.ok(result_win, "result window not found")
+	h.eq(vim.wo[result_win].number, false)
+	h.eq(vim.wo[result_win].relativenumber, false)
 end)
 
 h.test("q closes a result window and its tab", function()

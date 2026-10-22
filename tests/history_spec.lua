@@ -48,6 +48,8 @@ h.test("history preview shows the full query", function()
 
 	history.preview_entry(history.list()[1])
 	h.ok(history.preview.win and vim.api.nvim_win_is_valid(history.preview.win))
+	h.eq(vim.wo[history.preview.win].number, true)
+	h.eq(vim.wo[history.preview.win].relativenumber, false)
 	local text = table.concat(vim.api.nvim_buf_get_lines(history.preview.buf, 0, -1, false), "\n")
 	h.matches(text, "test")
 	h.matches(text, "select 1 as x")

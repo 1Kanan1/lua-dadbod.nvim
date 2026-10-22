@@ -176,7 +176,7 @@ function M.preview_entry(entry)
 		vim.wo[win].wrap = true
 		vim.wo[win].linebreak = true
 		vim.wo[win].cursorline = true
-		vim.wo[win].number = false
+		vim.wo[win].number = true
 		vim.wo[win].relativenumber = false
 		vim.wo[win].signcolumn = "no"
 	else

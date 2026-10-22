@@ -28,11 +28,21 @@ local function find_window(bufnr)
 	return windows and windows[1] or nil
 end
 
+local function style_window(win)
+	vim.wo[win].number = false
+	vim.wo[win].relativenumber = false
+end
+
 local function show(bufnr)
-	if find_window(bufnr) then
+	local win = find_window(bufnr)
+	if win then
+		style_window(win)
 		return
 	end
-	util.open_split({ bufnr = bufnr, restore = true })
+	local target = util.open_split({ bufnr = bufnr, restore = true })
+	if target then
+		style_window(target)
+	end
 end
 
 local function header(bufnr)
