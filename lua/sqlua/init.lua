@@ -1,7 +1,64 @@
 local M = {}
 
+local global_keys = {
+	"<leader>Do",
+	"<leader>Dt",
+	"<leader>Dc",
+	"<leader>Da",
+	"<leader>Df",
+	"<leader>Dx",
+}
+
+local function remove_global_mappings()
+	for _, lhs in ipairs(global_keys) do
+		pcall(vim.keymap.del, "n", lhs)
+	end
+end
+
+function M.setup_mappings()
+	local mappings = require("sqlua.config").get().mappings
+	if
+		mappings == false
+		or (type(mappings) == "table" and (mappings.enabled == false or mappings.global == false))
+	then
+		remove_global_mappings()
+		return
+	end
+
+	local function map(lhs, callback, desc)
+		vim.keymap.set("n", lhs, callback, { desc = desc })
+	end
+
+	map("<leader>Do", function()
+		require("sqlua.drawer").open()
+	end, "sqlua: open drawer")
+	map("<leader>Dt", function()
+		require("sqlua.drawer").toggle()
+	end, "sqlua: toggle drawer")
+	map("<leader>Dc", function()
+		require("sqlua.drawer").close()
+	end, "sqlua: close drawer")
+	map("<leader>Da", function()
+		M.add_connection()
+	end, "sqlua: add connection")
+	map("<leader>Df", function()
+		M.attach()
+	end, "sqlua: attach buffer")
+	map("<leader>Dx", function()
+		M.clear_cache()
+	end, "sqlua: clear cache")
+
+	local ok, which_key = pcall(require, "which-key")
+	if ok and type(which_key.add) == "function" then
+		pcall(which_key.add, {
+			{ "<leader>D", group = "sqlua" },
+		})
+	end
+end
+
 function M.setup(opts)
 	require("sqlua.config").setup(opts)
+	M.setup_mappings()
 	return M
 end
 
@@ -34,6 +91,7 @@ function M.attach(bufnr)
 	end
 	if #connections == 1 then
 		local entry = connections[1]
+		ui.set_active(entry.key)
 		local attached, err = query.attach(entry, bufnr)
 		if not attached then
 			util.error(err)
@@ -44,6 +102,7 @@ function M.attach(bufnr)
 	end
 
 	local picked, pick_err = ui.pick("Attach buffer to connection", function(entry)
+		ui.set_active(entry.key)
 		local attached, err = query.attach(entry, bufnr)
 		if not attached then
 			util.error(err)

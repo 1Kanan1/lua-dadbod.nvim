@@ -29,6 +29,7 @@ command("DB", function(opts)
 		error(err, 0)
 	end
 end, {
+	force = true,
 	range = true,
 	bang = true,
 	nargs = "*",
@@ -77,6 +78,7 @@ command("SqluaFindBuffer", function()
 	end
 	if #connections == 1 then
 		local entry = connections[1]
+		ui.set_active(entry.key)
 		local attached, err = query.attach(entry, bufnr)
 		if not attached then
 			error(err, 0)
@@ -86,6 +88,7 @@ command("SqluaFindBuffer", function()
 	end
 
 	ui.pick("Attach buffer to connection", function(entry)
+		ui.set_active(entry.key)
 		local attached, err = query.attach(entry, bufnr)
 		if not attached then
 			util.error(err)
