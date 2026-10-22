@@ -237,6 +237,18 @@ function M.cancel(bufnr)
 	end
 end
 
+function M.close(bufnr)
+	local wins = vim.fn.win_findbuf(bufnr)
+	for _, win in ipairs(wins) do
+		if #vim.api.nvim_list_wins() > 1 or #vim.api.nvim_list_tabpages() > 1 then
+			pcall(vim.api.nvim_win_close, win, true)
+		end
+	end
+	if vim.api.nvim_buf_is_valid(bufnr) then
+		pcall(vim.cmd, "bdelete " .. bufnr)
+	end
+end
+
 function M.rerun(bufnr)
 	local meta = get_meta(bufnr)
 	if not meta or not meta.sql or meta.sql == "" then
@@ -260,7 +272,7 @@ function M.keymaps(bufnr)
 	end
 
 	vim.keymap.set("n", "q", function()
-		vim.cmd("bdelete")
+		M.close(bufnr)
 	end, { buffer = bufnr, silent = true, nowait = true, desc = "Close sqlua result" })
 
 	vim.keymap.set("n", "R", function()

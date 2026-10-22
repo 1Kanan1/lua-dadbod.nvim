@@ -41,6 +41,22 @@ h.test("execute.run creates a result buffer", function()
 	h.eq(vim.b[source].sqlua_result_buf, result_buf)
 end)
 
+h.test("q closes a result window and its tab", function()
+	pcall(vim.cmd, "silent! tabonly")
+	vim.cmd("tabnew")
+	local bufnr = vim.api.nvim_create_buf(false, true)
+	vim.bo[bufnr].bufhidden = "wipe"
+	vim.bo[bufnr].buftype = "nofile"
+	vim.bo[bufnr].filetype = "sqlua_result"
+	vim.api.nvim_win_set_buf(0, bufnr)
+	require("sqlua.result").keymaps(bufnr)
+
+	vim.cmd("normal q")
+
+	h.eq(vim.api.nvim_buf_is_valid(bufnr), false)
+	h.eq(#vim.api.nvim_list_tabpages(), 1)
+end)
+
 h.test(":DB runs a query", function()
 	local source = vim.api.nvim_get_current_buf()
 	vim.cmd("DB sqlite::memory: select 42 as answer")
