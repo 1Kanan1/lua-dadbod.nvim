@@ -101,8 +101,8 @@ end
 local function geometry()
 	local columns = vim.o.columns
 	local rows = vim.o.lines
-	local width = math.min(120, math.max(40, columns - 10))
-	local height = math.min(30, math.max(8, rows - 6))
+	local width = math.min(100, math.max(40, math.floor(columns * 0.6)))
+	local height = math.min(20, math.max(8, math.floor(rows * 0.5)))
 	local row = math.max(0, math.floor((rows - height) / 2) - 1)
 	local col = math.max(0, math.floor((columns - width) / 2))
 	return {
