@@ -29,6 +29,41 @@ local function connection_parts(connection)
 	return nil, nil
 end
 
+local function effective_helpers(adapter)
+	local helpers = {}
+	for name, template in pairs(adapter.helpers or {}) do
+		if template ~= "" then
+			helpers[name] = template
+		end
+	end
+
+	local custom = config.get().table_helpers[adapter.name]
+	if type(custom) ~= "table" then
+		custom = {}
+	end
+	for name, template in pairs(custom) do
+		if template == "" then
+			helpers[name] = nil
+		else
+			helpers[name] = template
+		end
+	end
+
+	return helpers
+end
+
+local function query_name(name)
+	name = util.trim(name or "")
+	if name == "" then
+		return nil, "a query name is required"
+	end
+	name = name:gsub("[/\\]", "_")
+	if name:sub(-4):lower() ~= ".sql" then
+		name = name .. ".sql"
+	end
+	return name
+end
+
 local function helper_sql(connection, opts)
 	local parsed, adapter = db.parse(connection)
 	if not parsed or not adapter then
@@ -36,12 +71,9 @@ local function helper_sql(connection, opts)
 	end
 
 	local helper = opts.helper or "List"
-	local template = adapter.helpers and adapter.helpers[helper]
+	local template = effective_helpers(adapter)[helper]
 	if not template then
 		return nil, "no helper " .. helper .. " for " .. adapter.name
-	end
-	if template == "" then
-		return nil, "helper " .. helper .. " is disabled"
 	end
 
 	local quote = adapter.quote
@@ -176,27 +208,98 @@ function M.resolve_binds(text, bind, callback)
 	next_param()
 end
 
-function M.open(connection, opts)
-	opts = opts or {}
+local function resolve_connection(connection)
 	local connection_url, connection_name = connection_parts(connection)
 	if not connection_url or connection_url == "" then
-		return nil, "connection URL is required"
+		return nil, nil, nil, "connection URL is required"
 	end
 
 	local canonical, err = db.resolve(connection_url)
 	if not canonical then
-		return nil, err
+		return nil, nil, nil, err
 	end
 
 	local parsed, adapter = db.parse(canonical)
 	if not parsed or not adapter then
-		return nil, adapter or "invalid connection URL"
+		return nil, nil, nil, adapter or "invalid connection URL"
 	end
 
 	connection_name = connection_name
+		or (parsed.opaque == ":memory:" and "memory")
 		or (parsed.opaque and parsed.opaque ~= ":memory:" and parsed.opaque)
 		or (parsed.path and parsed.path:gsub("^/", ""))
 		or adapter.name
+
+	return canonical, connection_name, adapter, nil, connection_url, parsed
+end
+
+local function open_window(split)
+	local current = vim.api.nvim_get_current_win()
+	local current_buf = vim.api.nvim_win_get_buf(current)
+	local current_config = vim.api.nvim_win_get_config(current)
+	if vim.b[current_buf].sqlua_drawer or current_config.relative ~= "" then
+		for _, win in ipairs(vim.api.nvim_list_wins()) do
+			local buf = vim.api.nvim_win_get_buf(win)
+			if not vim.b[buf].sqlua_drawer and vim.api.nvim_win_get_config(win).relative == "" then
+				vim.api.nvim_set_current_win(win)
+				break
+			end
+		end
+	end
+	local ok = pcall(vim.cmd, split == "vsplit" and "botright vsplit" or "botright split")
+	if not ok then
+		vim.cmd("tabnew")
+	end
+end
+
+local function setup_buffer(bufnr, adapter)
+	vim.bo[bufnr].swapfile = false
+	vim.bo[bufnr].buflisted = true
+	vim.bo[bufnr].filetype = adapter.filetype or "sql"
+
+	if mappings_enabled("query") then
+		vim.keymap.set("n", "<Leader>S", function()
+			M.run(bufnr)
+		end, { buffer = bufnr, silent = true, desc = "Run sqlua query" })
+		vim.keymap.set("v", "<Leader>S", function()
+			M.run_visual(bufnr)
+		end, { buffer = bufnr, silent = true, desc = "Run sqlua selection" })
+		vim.keymap.set("n", "<Leader>W", function()
+			M.save(bufnr)
+		end, { buffer = bufnr, silent = true, desc = "Save sqlua query" })
+		vim.keymap.set("n", "<Leader>E", function()
+			M.edit_bind(bufnr)
+		end, { buffer = bufnr, silent = true, desc = "Edit sqlua bind parameters" })
+	end
+
+	local group = vim.api.nvim_create_augroup("sqlua_query_" .. bufnr, { clear = true })
+	vim.api.nvim_create_autocmd("BufWritePost", {
+		group = group,
+		buffer = bufnr,
+		callback = function()
+			if config.get().execute_on_save then
+				M.run(bufnr)
+			end
+		end,
+	})
+	vim.api.nvim_create_autocmd("BufWipeout", {
+		group = group,
+		buffer = bufnr,
+		callback = function()
+			local drawer = package.loaded["sqlua.drawer"]
+			if drawer and drawer.is_open() then
+				pcall(drawer.render)
+			end
+		end,
+	})
+end
+
+function M.open(connection, opts)
+	opts = opts or {}
+	local canonical, connection_name, adapter, err, connection_url, parsed = resolve_connection(connection)
+	if not canonical then
+		return nil, err
+	end
 
 	local dbname = opts.dbname or opts.schema or (parsed.path and parsed.path:gsub("^/", "")) or connection_name
 	local directory = vim.fn.expand(config.get().tmp_location)
@@ -222,18 +325,18 @@ function M.open(connection, opts)
 		return nil, write_err
 	end
 
-	vim.cmd("botright split")
+	open_window(opts.split)
 	local bufnr = vim.api.nvim_create_buf(true, false)
 	vim.api.nvim_win_set_buf(0, bufnr)
 	vim.api.nvim_buf_set_name(bufnr, path)
-	vim.bo[bufnr].swapfile = false
-	vim.bo[bufnr].filetype = adapter.filetype or "sql"
+	setup_buffer(bufnr, adapter)
 
 	local meta = {
 		conn = canonical,
 		url = connection_url,
 		conn_name = connection_name,
 		conn_key = (type(connection) == "table" and connection.key) or connection_name,
+		dbms = adapter.name,
 		source = "scratch",
 		schema = opts.schema or "",
 		table = opts.table or "",
@@ -242,30 +345,6 @@ function M.open(connection, opts)
 		result_buf = nil,
 	}
 	vim.b[bufnr].sqlua = meta
-
-	if mappings_enabled("query") then
-		vim.keymap.set("n", "<Leader>S", function()
-			M.run(bufnr)
-		end, { buffer = bufnr, silent = true, desc = "Run sqlua query" })
-		vim.keymap.set("v", "<Leader>S", function()
-			M.run_visual(bufnr)
-		end, { buffer = bufnr, silent = true, desc = "Run sqlua selection" })
-		vim.keymap.set("n", "<Leader>W", function()
-			M.save(bufnr)
-		end, { buffer = bufnr, silent = true, desc = "Save sqlua query" })
-		vim.keymap.set("n", "<Leader>E", function()
-			M.edit_bind(bufnr)
-		end, { buffer = bufnr, silent = true, desc = "Edit sqlua bind parameters" })
-	end
-
-	vim.api.nvim_create_autocmd("BufWritePost", {
-		buffer = bufnr,
-		callback = function()
-			if config.get().execute_on_save then
-				M.run(bufnr)
-			end
-		end,
-	})
 
 	local content = opts.sql
 	if not content and opts.table and opts.table ~= "" then
@@ -298,6 +377,104 @@ function M.open(connection, opts)
 	end
 
 	return bufnr
+end
+
+function M.open_path(path, connection, opts)
+	opts = opts or {}
+	path = vim.fn.fnamemodify(path, ":p")
+	if vim.fn.filereadable(path) == 0 then
+		return nil, "query file not found: " .. path
+	end
+
+	local canonical, connection_name, adapter, err, connection_url = resolve_connection(connection)
+	if not canonical then
+		return nil, err
+	end
+
+	open_window(opts.split)
+	local bufnr = vim.fn.bufadd(path)
+	vim.fn.bufload(bufnr)
+	vim.api.nvim_win_set_buf(0, bufnr)
+
+	local meta = vim.b[bufnr].sqlua
+	if type(meta) ~= "table" then
+		meta = {}
+	end
+	meta.conn = canonical
+	meta.url = connection_url
+	meta.conn_name = connection_name
+	meta.conn_key = (type(connection) == "table" and connection.key) or connection_name
+	meta.dbms = adapter.name
+	meta.source = "saved"
+	meta.path = vim.api.nvim_buf_get_name(bufnr)
+	meta.bind = meta.bind or {}
+	vim.b[bufnr].sqlua = meta
+	setup_buffer(bufnr, adapter)
+	return bufnr
+end
+
+function M.focus(bufnr, opts)
+	opts = opts or {}
+	if not vim.api.nvim_buf_is_valid(bufnr) then
+		return nil, "invalid buffer"
+	end
+
+	if not opts.force_split then
+		for _, win in ipairs(vim.api.nvim_list_wins()) do
+			if vim.api.nvim_win_get_buf(win) == bufnr then
+				vim.api.nvim_set_current_win(win)
+				return bufnr
+			end
+		end
+	end
+
+	open_window(opts.split)
+	vim.api.nvim_win_set_buf(0, bufnr)
+	return bufnr
+end
+
+function M.attach(connection, bufnr)
+	bufnr = bufnr or vim.api.nvim_get_current_buf()
+	if not vim.api.nvim_buf_is_valid(bufnr) then
+		return nil, "invalid buffer"
+	end
+
+	local canonical, connection_name, adapter, err, connection_url = resolve_connection(connection)
+	if not canonical then
+		return nil, err
+	end
+
+	local meta = vim.b[bufnr].sqlua
+	if type(meta) ~= "table" then
+		meta = {}
+	end
+	meta.conn = canonical
+	meta.url = connection_url
+	meta.conn_name = connection_name
+	meta.conn_key = (type(connection) == "table" and connection.key) or connection_name
+	meta.dbms = adapter.name
+	meta.source = meta.source or "attached"
+	meta.bind = meta.bind or {}
+	vim.b[bufnr].sqlua = meta
+	setup_buffer(bufnr, adapter)
+	return bufnr
+end
+
+function M.helper_names(connection)
+	local parsed, adapter = db.parse(connection)
+	if not parsed or not adapter then
+		return {}
+	end
+
+	local helpers = effective_helpers(adapter)
+	local names = {}
+	for name in pairs(helpers) do
+		if name ~= "List" then
+			names[#names + 1] = name
+		end
+	end
+	table.sort(names)
+	return names
 end
 
 function M.run(bufnr)
@@ -334,17 +511,13 @@ function M.save_as(bufnr, name)
 		return nil, "buffer is not attached to a connection"
 	end
 
-	name = util.trim(name or "")
-	if name == "" then
-		return nil, "a query name is required"
-	end
-	name = name:gsub("[/\\]", "_")
-	if name:sub(-4):lower() ~= ".sql" then
-		name = name .. ".sql"
+	local name, name_err = query_name(name)
+	if not name then
+		return nil, name_err
 	end
 
-	local connection_name = meta.conn_name or meta.conn_key or "db"
-	local directory = vim.fn.expand(config.get().save_location) .. "/queries/" .. util.slug(connection_name)
+	local connection_key = meta.conn_key or meta.conn_name or "db"
+	local directory = vim.fn.expand(config.get().save_location) .. "/queries/" .. util.slug(connection_key)
 	util.ensure_dir(directory)
 
 	local path = directory .. "/" .. name
@@ -362,15 +535,64 @@ function M.save_as(bufnr, name)
 	end
 
 	meta.source = "saved"
-	meta.path = path
+	meta.path = vim.api.nvim_buf_get_name(bufnr)
 	vim.b[bufnr].sqlua = meta
-	return path
+
+	local drawer = package.loaded["sqlua.drawer"]
+	if drawer and drawer.is_open() then
+		pcall(drawer.render)
+	end
+
+	return meta.path
+end
+
+function M.rename_file(old_path, new_name)
+	old_path = vim.fn.fnamemodify(old_path, ":p")
+	if vim.fn.filereadable(old_path) == 0 then
+		return nil, "query file not found: " .. old_path
+	end
+
+	local name, name_err = query_name(new_name)
+	if not name then
+		return nil, name_err
+	end
+
+	local new_path = vim.fs.dirname(old_path) .. "/" .. name
+	if new_path == old_path then
+		return old_path
+	end
+	if vim.fn.filereadable(new_path) == 1 then
+		return nil, "a query with that name already exists"
+	end
+
+	local ok, result = pcall(vim.fn.rename, old_path, new_path)
+	if not ok or result ~= 0 then
+		return nil, "cannot rename query: " .. tostring(result)
+	end
+
+	local bufnr = vim.fn.bufnr(old_path)
+	if bufnr == -1 then
+		bufnr = vim.fn.bufnr(vim.fn.resolve(old_path))
+	end
+	if bufnr ~= -1 and vim.api.nvim_buf_is_valid(bufnr) then
+		vim.api.nvim_buf_set_name(bufnr, new_path)
+		local buffer_path = vim.api.nvim_buf_get_name(bufnr)
+		local meta = vim.b[bufnr].sqlua
+		if type(meta) == "table" then
+			meta.path = buffer_path
+			vim.b[bufnr].sqlua = meta
+		end
+		return buffer_path
+	end
+
+	return new_path
 end
 
 function M.save(bufnr)
 	bufnr = bufnr or vim.api.nvim_get_current_buf()
-	local default = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bufnr), ":t:r")
-	if default == "" then
+	local meta = vim.b[bufnr].sqlua
+	local default = type(meta) == "table" and meta.table or "query"
+	if default == nil or default == "" then
 		default = "query"
 	end
 	util.input("Save query as: ", default, function(name)
