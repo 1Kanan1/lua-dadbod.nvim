@@ -47,7 +47,22 @@ local function show(bufnr)
 		return
 	end
 	local current = vim.api.nvim_get_current_win()
-	vim.cmd("botright split")
+	local current_config = vim.api.nvim_win_get_config(current)
+	if current_config.relative ~= "" then
+		for _, win in ipairs(vim.api.nvim_list_wins()) do
+			if vim.api.nvim_win_get_config(win).relative == "" then
+				vim.api.nvim_set_current_win(win)
+				break
+			end
+		end
+	end
+	local ok = pcall(vim.cmd, "botright split")
+	if not ok then
+		ok = pcall(vim.cmd, "tabnew")
+		if not ok then
+			return
+		end
+	end
 	local target = vim.api.nvim_get_current_win()
 	vim.api.nvim_win_set_buf(target, bufnr)
 	vim.api.nvim_set_current_win(current)
@@ -128,6 +143,7 @@ function M.open(opts)
 	set_meta(bufnr, {
 		source_buf = opts.source_buf,
 		conn = opts.conn,
+		conn_key = opts.conn_key,
 		name = opts.name,
 		sql = opts.sql,
 		status = "running",
@@ -160,6 +176,7 @@ function M.reset(bufnr, opts)
 	local meta = get_meta(bufnr) or {}
 	meta.source_buf = opts.source_buf or meta.source_buf
 	meta.conn = opts.conn
+	meta.conn_key = opts.conn_key or meta.conn_key
 	meta.name = opts.name
 	meta.sql = opts.sql
 	meta.status = "running"
@@ -227,6 +244,7 @@ function M.rerun(bufnr)
 	local _, err = require("sqlua.execute").run(meta.sql, {
 		bufnr = meta.source_buf,
 		conn = meta.conn,
+		conn_key = meta.conn_key,
 		name = meta.name,
 	})
 	if err then

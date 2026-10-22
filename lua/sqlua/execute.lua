@@ -20,6 +20,22 @@ local function source_buffer(opts)
 	return bufnr
 end
 
+local function short_name(parsed)
+	if parsed.opaque == ":memory:" then
+		return "memory"
+	end
+	if parsed.opaque and parsed.opaque ~= "" then
+		return vim.fs.basename(parsed.opaque)
+	end
+	if parsed.path and parsed.path ~= "" and parsed.path ~= "/" then
+		return vim.fs.basename(parsed.path)
+	end
+	if parsed.host and parsed.host ~= "" then
+		return parsed.host
+	end
+	return "default"
+end
+
 local function result_for(source, opts)
 	local existing = vim.b[source].sqlua_result_buf
 	if existing and vim.api.nvim_buf_is_valid(existing) and not opts.bang then
@@ -54,15 +70,23 @@ function M.run(sql, opts, callback)
 	end
 
 	local parsed, adapter = db.parse(connection)
-	if not parsed then
-		return nil, adapter
+	if not parsed or not adapter then
+		return nil, adapter or "invalid connection URL"
 	end
 
 	local canonical = url.format(parsed)
-	local display = opts.name or url.safe_format(parsed)
+	local ui = require("sqlua.ui")
+	local configured = opts.conn_key and ui.get(opts.conn_key) or nil
+	if not configured then
+		configured = ui.find_by_url(canonical)
+	end
+
+	local display = opts.name or (configured and configured.name) or url.safe_format(parsed)
+	local history_name = opts.name or (configured and configured.name) or short_name(parsed)
 	local result_buf, result_err = result_for(source, {
 		source_buf = source,
 		conn = canonical,
+		conn_key = opts.conn_key,
 		name = display,
 		sql = sql,
 		bang = opts.bang,
@@ -81,6 +105,18 @@ function M.run(sql, opts, callback)
 	local handle, run_err = db.run(canonical, sql, {
 		timeout = opts.timeout,
 	}, function(query_result)
+		require("sqlua.history").add({
+			conn = canonical,
+			dbms = adapter.name,
+			name = history_name,
+			key = opts.conn_key,
+			sql = sql,
+			code = query_result.code,
+			signal = query_result.signal,
+			elapsed = query_result.elapsed,
+			timed_out = query_result.timed_out,
+		})
+
 		local current = vim.api.nvim_buf_is_valid(result_buf) and vim.b[result_buf].sqlua_result or nil
 		local is_current = current ~= nil and current.generation == generation
 		if is_current then
@@ -147,6 +183,7 @@ function M.run_buffer(opts)
 		M.run(resolved, {
 			bufnr = bufnr,
 			conn = opts.conn or meta.conn or meta.url,
+			conn_key = opts.conn_key or meta.conn_key,
 			name = opts.name or meta.conn_name,
 			bang = opts.bang,
 			timeout = opts.timeout,
