@@ -130,6 +130,11 @@ h.test(":SqluaFindBuffer attaches the current buffer", function()
 		save = config.get().save_location,
 		tmp = config.get().tmp_location,
 	}
+	local directory = vim.fn.tempname()
+	config.setup({
+		save_location = directory .. "/sqlua",
+		tmp_location = directory .. "/queries",
+	})
 	vim.g.dbs = { only = "sqlite::memory:" }
 	ui.reset()
 
@@ -140,7 +145,7 @@ h.test(":SqluaFindBuffer attaches the current buffer", function()
 	h.matches(vim.b[bufnr].sqlua.conn, "sqlite::memory:")
 	h.eq(vim.b[bufnr].sqlua.conn_name, "only")
 
-	restore_globals(previous)
+	restore_globals(previous, directory)
 end)
 
 h.test("connection labels add the dbms only for multiple dbms", function()
@@ -237,8 +242,9 @@ h.test("n creates a scratchpad for the active connection", function()
 
 	local drawer = require("sqlua.drawer")
 	drawer.open()
-	h.eq(ui.active(), "test_g:dbs")
+	h.is_nil(ui.active())
 	drawer.new_scratchpad()
+	h.eq(ui.active(), "test_g:dbs")
 
 	local query_buf = vim.api.nvim_get_current_buf()
 	local meta = vim.b[query_buf].sqlua
@@ -272,7 +278,7 @@ h.test("drawer expands a connection and opens a table", function()
 
 	local path = directory .. "/drawer.db"
 	local created = false
-	db.run("sqlite:" .. path, "create table users(id integer);", {}, function()
+	db.run("sqlite:" .. path, "create table users(id integer); insert into users values (1);", {}, function()
 		created = true
 	end)
 	h.ok(vim.wait(5000, function()
@@ -300,8 +306,10 @@ h.test("drawer expands a connection and opens a table", function()
 	h.eq(vim.fn.hlexists("SqluaScratchpads"), 1)
 	h.eq(vim.fn.hlexists("SqluaHistory"), 1)
 
+	h.eq(ui.is_activated("test_g:dbs"), false)
 	vim.api.nvim_win_set_cursor(0, { 1, 0 })
 	drawer.select("edit")
+	h.eq(ui.is_activated("test_g:dbs"), true)
 
 	local entry = ui.get("test_g:dbs")
 	h.ok(vim.wait(5000, function()
@@ -328,44 +336,58 @@ h.test("drawer expands a connection and opens a table", function()
 
 	vim.api.nvim_win_set_cursor(0, { table_line, 0 })
 	drawer.select("edit")
-
-	local query_buf = vim.api.nvim_get_current_buf()
-	local meta = vim.b[query_buf].sqlua
-	h.eq(meta.table, "users")
+	h.eq(vim.api.nvim_get_current_buf(), drawer_buf)
 
 	h.ok(vim.wait(5000, function()
-		return vim.b[query_buf].sqlua_result_buf ~= nil
-	end), "query did not start")
-	local result_buf = vim.b[query_buf].sqlua_result_buf
+		return vim.b[drawer_buf].sqlua_result_buf ~= nil
+	end), "preview did not start")
+	local result_buf = vim.b[drawer_buf].sqlua_result_buf
 	h.ok(vim.wait(5000, function()
 		local result_meta = vim.b[result_buf].sqlua_result
 		return result_meta and result_meta.status ~= "running"
-	end), "query did not finish")
+	end), "preview did not finish")
+	local result_text = table.concat(vim.api.nvim_buf_get_lines(result_buf, 0, -1, false), "\n")
+	h.matches(result_text, "id")
 
 	local drawer_win = drawer.find_win()
 	h.ok(drawer_win, "drawer window disappeared")
 	vim.api.nvim_set_current_win(drawer_win)
 	vim.api.nvim_win_set_cursor(drawer_win, { table_line, 0 })
 	drawer.columns()
+	h.eq(vim.api.nvim_get_current_buf(), drawer_buf)
 
-	local columns_buf = vim.api.nvim_get_current_buf()
-	local columns_meta = vim.b[columns_buf].sqlua
-	h.eq(columns_meta.helper, "Columns")
-	h.matches(table.concat(vim.api.nvim_buf_get_lines(columns_buf, 0, -1, false), "\n"), "pragma_table_info")
 	h.ok(vim.wait(5000, function()
-		return vim.b[columns_buf].sqlua_result_buf ~= nil
-	end), "columns query did not start")
-	local columns_result = vim.b[columns_buf].sqlua_result_buf
-	h.ok(vim.wait(5000, function()
-		local result_meta = vim.b[columns_result].sqlua_result
+		local result_meta = vim.b[result_buf].sqlua_result
 		return result_meta and result_meta.status ~= "running"
-	end), "columns query did not finish")
+	end), "columns preview did not finish")
+	result_text = table.concat(vim.api.nvim_buf_get_lines(result_buf, 0, -1, false), "\n")
+	h.matches(result_text, "name")
+
+	vim.api.nvim_set_current_win(drawer_win)
+	vim.api.nvim_win_set_cursor(drawer_win, { table_line, 0 })
+	drawer.edit()
+	local query_buf = vim.api.nvim_get_current_buf()
+	local meta = vim.b[query_buf].sqlua
+	h.eq(meta.table, "users")
+	h.matches(table.concat(vim.api.nvim_buf_get_lines(query_buf, 0, -1, false), "\n"), "limit 50")
+	vim.api.nvim_buf_delete(query_buf, { force = true })
 
 	drawer.close()
 	h.eq(drawer.is_open(), false)
 
 	pcall(vim.cmd, "silent! only")
 	restore_globals(previous, directory)
+end)
+
+h.test("global mappings follow setup", function()
+	local sqlua = require("sqlua")
+	sqlua.setup({ mappings = { global = true } })
+	h.eq(vim.fn.maparg("<leader>Do", "n") ~= "", true)
+
+	sqlua.setup({ mappings = { global = false } })
+	h.eq(vim.fn.maparg("<leader>Do", "n"), "")
+
+	sqlua.setup()
 end)
 
 h.test("sqlua commands exist", function()
