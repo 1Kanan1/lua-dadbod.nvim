@@ -11,6 +11,7 @@ local state = {
 	by_key = {},
 	warned = {},
 	active = nil,
+	activated = {},
 }
 
 local function connection_file()
@@ -178,11 +179,22 @@ function M.refresh()
 	state.by_key = by_key
 	state.initialized = true
 
+	local activated = {}
+	for key in pairs(state.activated or {}) do
+		if by_key[key] then
+			activated[key] = true
+		end
+	end
+	state.activated = activated
+
 	if state.active and not by_key[state.active] then
 		state.active = nil
 	end
-	if not state.active and #list == 1 then
-		state.active = list[1].key
+	if not state.active then
+		for key in pairs(activated) do
+			state.active = key
+			break
+		end
 	end
 
 	return list
@@ -209,7 +221,12 @@ end
 function M.set_active(key)
 	if key and state.by_key[key] then
 		state.active = key
+		state.activated[key] = true
 	end
+end
+
+function M.is_activated(key)
+	return key ~= nil and state.activated[key] == true
 end
 
 local function path_key(path)
@@ -367,6 +384,7 @@ function M.reset()
 		by_key = {},
 		warned = {},
 		active = nil,
+		activated = {},
 	}
 	db.clear_meta()
 end
