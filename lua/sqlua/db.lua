@@ -5,6 +5,11 @@ local util = require("sqlua.util")
 
 local M = {}
 
+local meta_cache = {
+	tables = {},
+	loading = {},
+}
+
 local function parse_input(input)
 	if type(input) == "table" then
 		return vim.deepcopy(input)
@@ -136,6 +141,84 @@ function M.resolve_buffer(bufnr)
 	end
 
 	return nil, "no connection for this buffer; pass a URL or set b:db or g:db"
+end
+
+local function finish_loading(key, tables, err)
+	local callbacks = meta_cache.loading[key] or {}
+	meta_cache.loading[key] = nil
+	for _, callback in ipairs(callbacks) do
+		callback(tables and vim.deepcopy(tables) or nil, err)
+	end
+end
+
+function M.fetch_tables(input, callback)
+	if type(callback) ~= "function" then
+		error("sqlua.db.fetch_tables: callback must be a function")
+	end
+
+	local parsed, adapter = M.parse(input)
+	if not parsed or not adapter then
+		callback(nil, adapter or "invalid connection URL")
+		return
+	end
+
+	local key = url.format(parsed)
+	if meta_cache.tables[key] then
+		callback(vim.deepcopy(meta_cache.tables[key]), nil)
+		return
+	end
+	if meta_cache.loading[key] then
+		table.insert(meta_cache.loading[key], callback)
+		return
+	end
+	if not adapter.tables_sql then
+		callback(nil, "adapter has no table metadata: " .. adapter.name)
+		return
+	end
+
+	local ok, statement = pcall(adapter.tables_sql, {})
+	if not ok or type(statement) ~= "string" or util.trim(statement) == "" then
+		callback(nil, "adapter returned no table metadata query: " .. adapter.name)
+		return
+	end
+
+	meta_cache.loading[key] = { callback }
+
+	local handle, err = M.run(key, statement, { meta = true }, function(result)
+		if result.code ~= 0 then
+			local message = util.trim(result.stderr)
+			if message == "" then
+				message = "table metadata query failed with exit " .. tostring(result.code)
+			end
+			finish_loading(key, nil, message)
+			return
+		end
+
+		local tables = {}
+		for _, line in ipairs(util.split_lines(result.stdout)) do
+			local value = util.trim(line)
+			if value ~= "" then
+				tables[#tables + 1] = value
+			end
+		end
+		meta_cache.tables[key] = tables
+		finish_loading(key, tables, nil)
+	end)
+
+	if not handle then
+		finish_loading(key, nil, err)
+	end
+end
+
+function M.clear_meta(input)
+	if input then
+		local parsed = M.parse(input)
+		if parsed then
+			meta_cache.tables[url.format(parsed)] = nil
+		end
+		return
+	end
+	meta_cache.tables = {}
 end
 
 function M.run(input, sql, opts, callback)
