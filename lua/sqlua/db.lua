@@ -91,14 +91,6 @@ function M.check_binary(input)
 	return true
 end
 
-function M.safe_format(input)
-	local parsed = M.parse(input)
-	if not parsed then
-		return ""
-	end
-	return url.safe_format(parsed)
-end
-
 function M.file_path(input)
 	local parsed, adapter = M.parse(input)
 	if not parsed or not adapter then
