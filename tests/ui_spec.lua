@@ -257,6 +257,44 @@ h.test("query deletes a saved scratchpad", function()
 	restore_globals(previous, directory)
 end)
 
+h.test("opening a saved query attaches its connection", function()
+	local previous = {
+		db = vim.g.db,
+		dbs = vim.g.dbs,
+		url = vim.env.SQLUA_URL,
+		name = vim.env.SQLUA_NAME,
+		save = config.get().save_location,
+		tmp = config.get().tmp_location,
+	}
+	local directory = vim.fn.tempname()
+	config.setup({
+		save_location = directory .. "/sqlua",
+		tmp_location = directory .. "/queries",
+	})
+	vim.g.dbs = { test = "sqlite::memory:" }
+	ui.reset()
+
+	local saved_dir = ui.saved_dir(ui.get("test_g:dbs"))
+	util.ensure_dir(saved_dir)
+	local path = saved_dir .. "/saved.sql"
+	vim.fn.writefile({ "select 1;" }, path)
+
+	vim.cmd("edit! " .. vim.fn.fnameescape(path))
+	local bufnr = vim.api.nvim_get_current_buf()
+	local meta = vim.b[bufnr].sqlua
+	h.ok(meta, "saved query was not attached")
+	h.eq(meta.conn, "sqlite::memory:")
+	h.eq(meta.conn_key, "test_g:dbs")
+	h.eq(meta.conn_name, "test")
+	h.eq(meta.dbms, "sqlite")
+	h.eq(meta.source, "saved")
+	h.eq(meta.path, vim.api.nvim_buf_get_name(bufnr))
+	h.eq(ui.active(), "test_g:dbs")
+
+	vim.api.nvim_buf_delete(bufnr, { force = true })
+	restore_globals(previous, directory)
+end)
+
 h.test("n creates a scratchpad for the active connection", function()
 	pcall(vim.cmd, "silent! only")
 	local previous = {

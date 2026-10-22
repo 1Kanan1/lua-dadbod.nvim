@@ -407,8 +407,9 @@ function M.focus(bufnr, opts)
 	return bufnr
 end
 
-function M.attach(connection, bufnr)
+function M.attach(connection, bufnr, opts)
 	bufnr = bufnr or vim.api.nvim_get_current_buf()
+	opts = opts or {}
 	if not vim.api.nvim_buf_is_valid(bufnr) then
 		return nil, "invalid buffer"
 	end
@@ -419,8 +420,8 @@ function M.attach(connection, bufnr)
 	end
 
 	local current = vim.b[bufnr].sqlua
-	local source = type(current) == "table" and current.source or "attached"
-	apply_connection_meta(bufnr, ctx, { source = source })
+	local source = opts.source or (type(current) == "table" and current.source) or "attached"
+	apply_connection_meta(bufnr, ctx, { source = source, path = opts.path })
 	setup_buffer(bufnr, ctx.adapter)
 	return bufnr
 end

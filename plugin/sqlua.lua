@@ -23,6 +23,31 @@ local function refresh_expanded()
 	end
 end
 
+vim.api.nvim_create_autocmd("BufReadPost", {
+	group = vim.api.nvim_create_augroup("sqlua_saved_queries", { clear = true }),
+	pattern = "*.sql",
+	callback = function(args)
+		local name = vim.api.nvim_buf_get_name(args.buf)
+		if name == "" then
+			return
+		end
+		local ui = require("sqlua.ui")
+		local entry = ui.find_saved_connection(name)
+		if not entry then
+			return
+		end
+		local attached, err = require("sqlua.query").attach(entry, args.buf, {
+			source = "saved",
+			path = name,
+		})
+		if not attached then
+			require("sqlua.util").error(err)
+			return
+		end
+		ui.set_active(entry.key)
+	end,
+})
+
 command("DB", function(opts)
 	local _, err = require("sqlua.execute").db_command(opts)
 	if err then

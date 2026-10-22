@@ -405,6 +405,17 @@ function M.saved_queries(entry)
 	return files
 end
 
+function M.find_saved_connection(path)
+	local directory = vim.fs.dirname(vim.fn.resolve(vim.fn.fnamemodify(path, ":p")))
+	for _, entry in ipairs(M.connections()) do
+		local saved = vim.fn.resolve(vim.fn.fnamemodify(M.saved_dir(entry), ":p"))
+		if saved == directory then
+			return entry
+		end
+	end
+	return nil
+end
+
 local function save_connection(raw, name, callback)
 	name = util.trim(name or "")
 	if name == "" then
