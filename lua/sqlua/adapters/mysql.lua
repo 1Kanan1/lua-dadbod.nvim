@@ -51,7 +51,7 @@ function M.interactive(parsed)
 end
 
 function M.tables_sql(ctx)
-	local dbname = ctx and (ctx.db or ctx.schema) or ""
+	local dbname = ctx and (ctx.schema or ctx.db) or ""
 	local schema = dbname ~= "" and sql.literal(dbname) or "database()"
 	return "select table_name from information_schema.tables where table_schema = "
 		.. schema
@@ -64,7 +64,7 @@ end
 
 function M.columns_sql(ctx)
 	ctx = ctx or {}
-	local dbname = ctx.db or ctx.schema or ""
+	local dbname = ctx.schema or ctx.db or ""
 	local schema = dbname ~= "" and sql.literal(dbname) or "database()"
 	return "select column_name, column_type, is_nullable, column_default, column_key from information_schema.columns where table_schema = "
 		.. schema

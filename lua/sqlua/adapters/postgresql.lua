@@ -34,7 +34,7 @@ function M.tables_sql(ctx)
 end
 
 function M.schemas_sql()
-	return "select schema_name from information_schema.schemata order by schema_name"
+	return "select schema_name from information_schema.schemata where schema_name = 'pg_catalog' or schema_name not like 'pg_%' order by schema_name"
 end
 
 function M.columns_sql(ctx)

@@ -6,8 +6,9 @@ local util = require("sqlua.util")
 local M = {}
 
 local meta_cache = {
+	schemas = {},
 	tables = {},
-	loading = {},
+	loading = { schemas = {}, tables = {} },
 }
 
 local function parse_input(input)
@@ -135,15 +136,91 @@ function M.resolve_buffer(bufnr)
 	return nil, "no connection for this buffer; pass a URL or set b:db or g:db"
 end
 
-local function finish_loading(key, tables, err)
-	local callbacks = meta_cache.loading[key] or {}
-	meta_cache.loading[key] = nil
+local function finish_loading(kind, key, items, err)
+	local callbacks = meta_cache.loading[kind][key] or {}
+	meta_cache.loading[kind][key] = nil
 	for _, callback in ipairs(callbacks) do
-		callback(tables and vim.deepcopy(tables) or nil, err)
+		callback(items and vim.deepcopy(items) or nil, err)
 	end
 end
 
-function M.fetch_tables(input, callback)
+local function metadata_error(result, label)
+	local message = util.trim(result.stderr)
+	if message == "" then
+		message = label .. " metadata query failed with exit " .. tostring(result.code)
+	end
+	return message
+end
+
+local function parse_lines(text)
+	local items = {}
+	for _, line in ipairs(util.split_lines(text)) do
+		local value = util.trim(line)
+		if value ~= "" then
+			items[#items + 1] = value
+		end
+	end
+	return items
+end
+
+function M.fetch_schemas(input, callback)
+	if type(callback) ~= "function" then
+		error("sqlua.db.fetch_schemas: callback must be a function")
+	end
+
+	local parsed, adapter = M.parse(input)
+	if not parsed or not adapter then
+		callback(nil, adapter or "invalid connection URL")
+		return
+	end
+
+	local key = url.format(parsed)
+	if meta_cache.schemas[key] then
+		callback(vim.deepcopy(meta_cache.schemas[key]), nil)
+		return
+	end
+	if meta_cache.loading.schemas[key] then
+		table.insert(meta_cache.loading.schemas[key], callback)
+		return
+	end
+	if not adapter.schemas_sql then
+		callback(nil, "adapter has no schema metadata: " .. adapter.name)
+		return
+	end
+
+	local ctx = {
+		schema = adapter.default_schema,
+		db = parsed.path and parsed.path:gsub("^/", "") or nil,
+	}
+	local ok, statement = pcall(adapter.schemas_sql, ctx)
+	if not ok or type(statement) ~= "string" or util.trim(statement) == "" then
+		callback(nil, "adapter returned no schema metadata query: " .. adapter.name)
+		return
+	end
+
+	meta_cache.loading.schemas[key] = { callback }
+
+	local handle, err = M.run(key, statement, { meta = true }, function(result)
+		if result.code ~= 0 then
+			finish_loading("schemas", key, nil, metadata_error(result, "schema"))
+			return
+		end
+
+		local schemas = parse_lines(result.stdout)
+		meta_cache.schemas[key] = schemas
+		finish_loading("schemas", key, schemas, nil)
+	end)
+
+	if not handle then
+		finish_loading("schemas", key, nil, err)
+	end
+end
+
+function M.fetch_tables(input, schema, callback)
+	if type(schema) == "function" then
+		callback = schema
+		schema = nil
+	end
 	if type(callback) ~= "function" then
 		error("sqlua.db.fetch_tables: callback must be a function")
 	end
@@ -155,12 +232,13 @@ function M.fetch_tables(input, callback)
 	end
 
 	local key = url.format(parsed)
-	if meta_cache.tables[key] then
-		callback(vim.deepcopy(meta_cache.tables[key]), nil)
+	local cache_key = key .. "\0" .. (schema or "")
+	if meta_cache.tables[cache_key] then
+		callback(vim.deepcopy(meta_cache.tables[cache_key]), nil)
 		return
 	end
-	if meta_cache.loading[key] then
-		table.insert(meta_cache.loading[key], callback)
+	if meta_cache.loading.tables[cache_key] then
+		table.insert(meta_cache.loading.tables[cache_key], callback)
 		return
 	end
 	if not adapter.tables_sql then
@@ -169,7 +247,7 @@ function M.fetch_tables(input, callback)
 	end
 
 	local ctx = {
-		schema = adapter.default_schema,
+		schema = schema or adapter.default_schema,
 		db = parsed.path and parsed.path:gsub("^/", "") or nil,
 	}
 	local ok, statement = pcall(adapter.tables_sql, ctx)
@@ -178,31 +256,21 @@ function M.fetch_tables(input, callback)
 		return
 	end
 
-	meta_cache.loading[key] = { callback }
+	meta_cache.loading.tables[cache_key] = { callback }
 
 	local handle, err = M.run(key, statement, { meta = true }, function(result)
 		if result.code ~= 0 then
-			local message = util.trim(result.stderr)
-			if message == "" then
-				message = "table metadata query failed with exit " .. tostring(result.code)
-			end
-			finish_loading(key, nil, message)
+			finish_loading("tables", cache_key, nil, metadata_error(result, "table"))
 			return
 		end
 
-		local tables = {}
-		for _, line in ipairs(util.split_lines(result.stdout)) do
-			local value = util.trim(line)
-			if value ~= "" then
-				tables[#tables + 1] = value
-			end
-		end
-		meta_cache.tables[key] = tables
-		finish_loading(key, tables, nil)
+		local tables = parse_lines(result.stdout)
+		meta_cache.tables[cache_key] = tables
+		finish_loading("tables", cache_key, tables, nil)
 	end)
 
 	if not handle then
-		finish_loading(key, nil, err)
+		finish_loading("tables", cache_key, nil, err)
 	end
 end
 
@@ -210,11 +278,28 @@ function M.clear_meta(input)
 	if input then
 		local parsed = M.parse(input)
 		if parsed then
-			meta_cache.tables[url.format(parsed)] = nil
+			local key = url.format(parsed)
+			meta_cache.schemas[key] = nil
+			meta_cache.loading.schemas[key] = nil
+
+			local prefix = key .. "\0"
+			for cache_key in pairs(meta_cache.tables) do
+				if cache_key:sub(1, #prefix) == prefix then
+					meta_cache.tables[cache_key] = nil
+				end
+			end
+			for cache_key in pairs(meta_cache.loading.tables) do
+				if cache_key:sub(1, #prefix) == prefix then
+					meta_cache.loading.tables[cache_key] = nil
+				end
+			end
 		end
 		return
 	end
+
+	meta_cache.schemas = {}
 	meta_cache.tables = {}
+	meta_cache.loading = { schemas = {}, tables = {} }
 end
 
 function M.run(input, sql, opts, callback)

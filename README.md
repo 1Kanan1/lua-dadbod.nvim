@@ -54,8 +54,8 @@ postgresql://user:password@host:5432/database
 mysql://user:password@host:3306/database
 ```
 
-PostgreSQL table browsing currently uses the `public` schema. MySQL uses the
-database in the URL. The schema tree comes next.
+SQLite goes straight to tables. PostgreSQL shows schemas, and MySQL/MariaDB
+shows databases as schemas.
 
 Enter on a connection or table to activate it. Enter on a table previews the
 first 50 rows. `e` opens the same query in an editable buffer, and `C` shows the

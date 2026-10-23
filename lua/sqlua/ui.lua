@@ -155,17 +155,30 @@ function M.refresh()
 			entry.error = old.error
 			entry.tables = old.tables
 			entry.tables_expanded = old.tables_expanded
+			entry.schemas = old.schemas
+			entry.schemas_loaded = old.schemas_loaded
+			entry.schemas_loading = old.schemas_loading
+			entry.schemas_expanded = old.schemas_expanded
+			entry.schema_state = old.schema_state
 		else
 			entry.tables_expanded = false
+			entry.schemas = {}
+			entry.schemas_expanded = true
+			entry.schema_state = {}
 		end
 		entry.tables = entry.tables or {}
+		entry.schemas = entry.schemas or {}
+		entry.schemas_expanded = entry.schemas_expanded ~= false
+		entry.schema_state = entry.schema_state or {}
 		local parsed, adapter = db.parse(entry.url)
 		if parsed and adapter then
 			entry.dbms = adapter.name
 			entry.canonical = url.format(parsed)
+			entry.schemas_supported = adapter.schemas_sql ~= nil
 		else
 			local raw = url.parse(entry.url)
 			entry.dbms = raw and raw.scheme or nil
+			entry.schemas_supported = false
 		end
 		if entry.dbms and not seen_dbms[entry.dbms] then
 			seen_dbms[entry.dbms] = true
@@ -400,6 +413,10 @@ function M.clear_meta()
 		entry.loaded = false
 		entry.error = nil
 		entry.tables = {}
+		entry.schemas = {}
+		entry.schemas_loaded = false
+		entry.schemas_loading = false
+		entry.schema_state = {}
 	end
 end
 

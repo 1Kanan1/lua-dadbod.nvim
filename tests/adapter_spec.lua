@@ -116,6 +116,7 @@ h.test("postgresql metadata and helpers", function()
 	h.eq(adapter.default_schema, "public")
 	h.matches(adapter.tables_sql({}), "table_schema = 'public'")
 	h.matches(adapter.schemas_sql({}), "information_schema%.schemata")
+	h.eq(adapter.schemas_sql({}):find("not like 'pg_%'", 1, true) ~= nil, true)
 	h.matches(adapter.columns_sql({ table = "users" }), "current_schema%(%)")
 	h.matches(adapter.helpers.Columns, "information_schema%.columns")
 end)
@@ -148,4 +149,55 @@ end)
 
 h.test("list adapters", function()
 	h.eq(adapters.list(), { "mysql", "postgresql", "sqlite" })
+end)
+
+h.test("schema metadata is cached per schema", function()
+	adapters.register({
+		name = "testmeta",
+		binary = "sqlite3",
+		quote = { '"', '"' },
+		filetype = "sql",
+		argv = function()
+			return { "sqlite3", ":memory:" }
+		end,
+		schemas_sql = function()
+			return "select 'public' union all select 'other' order by 1"
+		end,
+		tables_sql = function(ctx)
+			if ctx.schema == "public" then
+				return "select 'users' union all select 'orders' order by 1"
+			end
+			return "select 'other_table'"
+		end,
+	})
+
+	local schemas
+	db.fetch_schemas("testmeta:", function(value, err)
+		h.is_nil(err)
+		schemas = value
+	end)
+	h.ok(vim.wait(5000, function()
+		return schemas ~= nil
+	end), "schema metadata timed out")
+	h.eq(schemas, { "other", "public" })
+
+	local public_tables
+	db.fetch_tables("testmeta:", "public", function(value, err)
+		h.is_nil(err)
+		public_tables = value
+	end)
+	h.ok(vim.wait(5000, function()
+		return public_tables ~= nil
+	end), "public tables timed out")
+	h.eq(public_tables, { "orders", "users" })
+
+	local other_tables
+	db.fetch_tables("testmeta:", "other", function(value, err)
+		h.is_nil(err)
+		other_tables = value
+	end)
+	h.ok(vim.wait(5000, function()
+		return other_tables ~= nil
+	end), "other tables timed out")
+	h.eq(other_tables, { "other_table" })
 end)

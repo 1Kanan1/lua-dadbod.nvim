@@ -205,6 +205,7 @@ local function add_section(add, opts)
 		label = opts.label,
 		suffix = opts.suffix,
 		key = opts.key,
+		schema = opts.schema,
 	})
 
 	if opts.expanded and opts.body then
@@ -229,6 +230,69 @@ local function add_list_section(add, opts)
 			end
 			for _, item in ipairs(opts.items) do
 				add(opts.row(item))
+			end
+		end,
+	})
+end
+
+local function schema_state(entry, schema)
+	local state = entry.schema_state[schema]
+	if not state then
+		state = {
+			tables = {},
+			expanded = false,
+			tables_expanded = false,
+			loading = false,
+			loaded = false,
+		}
+		entry.schema_state[schema] = state
+	end
+	return state
+end
+
+local function add_table_section(add, entry, icons, level, schema, state)
+	local tables = state.tables or {}
+	add_section(add, {
+		section = "tables",
+		level = level,
+		schema = schema,
+		expanded = state.tables_expanded,
+		icons = icons,
+		type_icon = icons.table,
+		icon_hl = "SqluaTable",
+		label = "Tables",
+		suffix = state.loading and "(loading...)" or ("(" .. #tables .. ")"),
+		key = entry.key,
+		body = function()
+			if state.loading then
+				add({
+					kind = "help",
+					level = level + 1,
+					label = "loading...",
+					label_hl = "SqluaHelp",
+					key = entry.key,
+				})
+			elseif #tables == 0 then
+				add({
+					kind = "help",
+					level = level + 1,
+					label = "(no tables)",
+					label_hl = "SqluaHelp",
+					key = entry.key,
+				})
+			else
+				for _, table_name in ipairs(tables) do
+					add({
+						kind = "table",
+						level = level + 1,
+						type_icon = icons.table,
+						icon_hl = "SqluaTable",
+						label = table_name,
+						table = table_name,
+						schema = schema,
+						key = entry.key,
+					})
+				end
 			end
 		end,
 	})
@@ -267,33 +331,45 @@ local function add_connection_rows(add, entry, icons)
 		return
 	end
 
-	local tables = entry.tables or {}
+	if not entry.schemas_supported then
+		add_table_section(add, entry, icons, 1, nil, entry)
+		return
+	end
+
+	local schemas = entry.schemas or {}
 	add_section(add, {
-		section = "tables",
+		section = "schemas",
 		level = 1,
-		expanded = entry.tables_expanded,
+		expanded = entry.schemas_expanded,
 		icons = icons,
-		type_icon = icons.table,
-		icon_hl = "SqluaTable",
-		label = "Tables",
-		suffix = entry.loading and "(loading...)" or ("(" .. #tables .. ")"),
+		type_icon = icons.schema,
+		icon_hl = "SqluaSchema",
+		label = "Schemas",
+		suffix = entry.schemas_loading and "(loading...)" or ("(" .. #schemas .. ")"),
 		key = entry.key,
 		body = function()
-			if entry.loading then
+			if entry.schemas_loading then
 				add({ kind = "help", level = 2, label = "loading...", label_hl = "SqluaHelp", key = entry.key })
-			elseif #tables == 0 then
-				add({ kind = "help", level = 2, label = "(no tables)", label_hl = "SqluaHelp", key = entry.key })
-			else
-				for _, table_name in ipairs(tables) do
-					add({
-						kind = "table",
-						level = 2,
-						type_icon = icons.table,
-						icon_hl = "SqluaTable",
-						label = table_name,
-						table = table_name,
-						key = entry.key,
-					})
+				return
+			end
+			if #schemas == 0 then
+				add({ kind = "help", level = 2, label = "(no schemas)", label_hl = "SqluaHelp", key = entry.key })
+				return
+			end
+			for _, schema in ipairs(schemas) do
+				local state = schema_state(entry, schema)
+				add({
+					kind = "schema",
+					level = 2,
+					icon = state.expanded and expanded or collapsed,
+					type_icon = icons.schema,
+					icon_hl = "SqluaSchema",
+					label = schema,
+					key = entry.key,
+					schema = schema,
+				})
+				if state.expanded then
+					add_table_section(add, entry, icons, 3, schema, state)
 				end
 			end
 		end,
@@ -414,36 +490,121 @@ function M.row()
 	return M.rows[vim.fn.line(".")]
 end
 
-function M.fetch(entry)
-	if entry.loading then
+function M.fetch_schemas(entry)
+	if entry.loading or entry.schemas_loading then
 		return
 	end
 	entry.loading = true
+	entry.schemas_loading = true
 	entry.error = nil
 	local key = entry.key
 	M.render()
 
-	db.fetch_tables(entry.url, function(tables, err)
+	db.fetch_schemas(entry.url, function(schemas, err)
 		local current = ui.get(key)
 		if not current then
 			return
 		end
 		current.loading = false
+		current.schemas_loading = false
 		current.loaded = true
+		current.schemas_loaded = err == nil
 		if err then
 			current.error = err
-			current.tables = {}
+			current.schemas = {}
+			current.schema_state = {}
 			current.expanded = false
-			current.tables_expanded = false
 			ui.deactivate(key)
 			util.error(current.name .. ": " .. err)
 		else
-			current.tables = tables or {}
+			current.error = nil
+			current.schemas = schemas or {}
+			local states = {}
+			for _, schema in ipairs(current.schemas) do
+				states[schema] = current.schema_state[schema] or {
+					tables = {},
+					expanded = false,
+					tables_expanded = false,
+					loading = false,
+					loaded = false,
+				}
+			end
+			current.schema_state = states
 		end
 		if M.is_open() then
 			M.render()
 		end
 	end)
+end
+
+function M.fetch_schema_tables(entry, schema)
+	local state = schema_state(entry, schema)
+	if state.loading then
+		return
+	end
+	state.loading = true
+	local key = entry.key
+	M.render()
+
+	db.fetch_tables(entry.url, schema, function(tables, err)
+		local current = ui.get(key)
+		if not current then
+			return
+		end
+		local current_state = current.schema_state[schema]
+		if not current_state then
+			return
+		end
+		current_state.loading = false
+		if err then
+			current_state.tables = {}
+			current_state.loaded = false
+			current_state.expanded = false
+			util.error(current.name .. "/" .. schema .. ": " .. err)
+		else
+			current_state.tables = tables or {}
+			current_state.loaded = true
+		end
+		if M.is_open() then
+			M.render()
+		end
+	end)
+end
+
+function M.fetch(entry)
+	if entry.schemas_supported then
+		M.fetch_schemas(entry)
+	else
+		if entry.loading then
+			return
+		end
+		entry.loading = true
+		entry.error = nil
+		local key = entry.key
+		M.render()
+
+		db.fetch_tables(entry.url, function(tables, err)
+			local current = ui.get(key)
+			if not current then
+				return
+			end
+			current.loading = false
+			current.loaded = true
+			if err then
+				current.error = err
+				current.tables = {}
+				current.expanded = false
+				current.tables_expanded = false
+				ui.deactivate(key)
+				util.error(current.name .. ": " .. err)
+			else
+				current.tables = tables or {}
+			end
+			if M.is_open() then
+				M.render()
+			end
+		end)
+	end
 end
 
 function M.open_table(entry, table_name, helper, mode, schema, opts)
@@ -526,11 +687,34 @@ function M.select(mode)
 		return
 	end
 
+	if row.kind == "schema" then
+		local entry = ui.get(row.key)
+		if not entry then
+			return
+		end
+		local state = schema_state(entry, row.schema)
+		ui.set_active(entry.key)
+		state.expanded = not state.expanded
+		if state.expanded and not state.loaded and not state.loading then
+			M.fetch_schema_tables(entry, row.schema)
+		end
+		M.render()
+		return
+	end
+
 	if row.kind == "section" then
 		if row.section == "tables" then
 			local entry = ui.get(row.key)
-			if entry then
+			if entry and row.schema then
+				local state = schema_state(entry, row.schema)
+				state.tables_expanded = not state.tables_expanded
+			elseif entry then
 				entry.tables_expanded = not entry.tables_expanded
+			end
+		elseif row.section == "schemas" then
+			local entry = ui.get(row.key)
+			if entry then
+				entry.schemas_expanded = not entry.schemas_expanded
 			end
 		elseif row.section == "scratchpads" then
 			M.scratchpads_expanded = not M.scratchpads_expanded
@@ -731,6 +915,10 @@ function M.refresh()
 		entry.loaded = false
 		entry.error = nil
 		entry.tables = {}
+		entry.schemas = {}
+		entry.schemas_loaded = false
+		entry.schemas_loading = false
+		entry.schema_state = {}
 		db.clear_meta(entry.url)
 		if entry.expanded or had_error then
 			M.fetch(entry)
@@ -742,6 +930,10 @@ function M.refresh()
 			item.loaded = false
 			item.error = nil
 			item.tables = {}
+			item.schemas = {}
+			item.schemas_loaded = false
+			item.schemas_loading = false
+			item.schema_state = {}
 			if item.expanded then
 				M.fetch(item)
 			end

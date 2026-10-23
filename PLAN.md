@@ -472,7 +472,8 @@ require("sqlua").setup({
 })
 ```
 
-`completion` and `hide_schemas` are intentionally absent until their code lands.
+`completion` remains absent until Phase 5. `hide_schemas` is still absent;
+schemas are always listed for now.
 `table_helpers` merges over adapter defaults. An empty string removes a helper.
 `mappings = false` disables all built-in maps. `icons = false` disables type
 icons while keeping the expand/collapse markers. Drawer colors are controlled

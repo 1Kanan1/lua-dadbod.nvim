@@ -471,6 +471,102 @@ h.test("drawer expands a connection and opens a table", function()
 	restore_globals(previous, directory)
 end)
 
+h.test("drawer loads schemas and schema tables", function()
+	require("sqlua.adapters").register({
+		name = "uitestmeta",
+		binary = "sqlite3",
+		quote = { '"', '"' },
+		filetype = "sql",
+		argv = function()
+			return { "sqlite3", ":memory:" }
+		end,
+		schemas_sql = function()
+			return "select 'public' union all select 'other' order by 1"
+		end,
+		tables_sql = function(ctx)
+			if ctx.schema == "public" then
+				return "select 'users' union all select 'orders' order by 1"
+			end
+			return "select 'other_table'"
+		end,
+	})
+
+	local previous = {
+		db = vim.g.db,
+		dbs = vim.g.dbs,
+		url = vim.env.SQLUA_URL,
+		name = vim.env.SQLUA_NAME,
+		save = config.get().save_location,
+		tmp = config.get().tmp_location,
+	}
+	local directory = vim.fn.tempname()
+	config.setup({
+		save_location = directory .. "/sqlua",
+		tmp_location = directory .. "/queries",
+	})
+	vim.g.dbs = { meta = "uitestmeta:" }
+	ui.reset()
+
+	local drawer = require("sqlua.drawer")
+	drawer.open()
+	local conn_line
+	for index, row in ipairs(drawer.rows) do
+		if row.kind == "conn" then
+			conn_line = index
+		end
+	end
+	vim.api.nvim_win_set_cursor(0, { conn_line, 0 })
+	drawer.select("edit")
+
+	local entry = ui.get("meta_g:dbs")
+	h.ok(vim.wait(5000, function()
+		return entry.schemas_loaded
+	end), "schemas did not load")
+	h.eq(entry.schemas, { "other", "public" })
+
+	local schema_line
+	for index, row in ipairs(drawer.rows) do
+		if row.kind == "schema" and row.schema == "public" then
+			schema_line = index
+		end
+	end
+	h.ok(schema_line, "public schema row not found")
+	vim.api.nvim_win_set_cursor(0, { schema_line, 0 })
+	drawer.select("edit")
+
+	local state = entry.schema_state.public
+	h.ok(vim.wait(5000, function()
+		return state.loaded
+	end), "schema tables did not load")
+	h.eq(state.tables, { "orders", "users" })
+
+	local tables_line
+	for index, row in ipairs(drawer.rows) do
+		if row.kind == "section" and row.section == "tables" and row.schema == "public" then
+			tables_line = index
+		end
+	end
+	h.ok(tables_line, "schema Tables section not found")
+	vim.api.nvim_win_set_cursor(0, { tables_line, 0 })
+	drawer.select("edit")
+
+	local table_rows = {}
+	for _, row in ipairs(drawer.rows) do
+		if row.kind == "table" then
+			table_rows[#table_rows + 1] = row
+		end
+	end
+	h.eq(#table_rows, 2)
+	h.eq(table_rows[1].table, "orders")
+	h.eq(table_rows[2].table, "users")
+	h.eq(table_rows[1].schema, "public")
+	h.eq(table_rows[1].level, 4)
+
+	drawer.close()
+	pcall(vim.cmd, "silent! only")
+	restore_globals(previous, directory)
+end)
+
 h.test("failed connections collapse and stay inactive", function()
 	local previous = {
 		db = vim.g.db,
