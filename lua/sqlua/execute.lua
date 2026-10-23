@@ -73,6 +73,7 @@ function M.run(sql, opts, callback)
 		conn_key = opts.conn_key,
 		name = display,
 		sql = sql,
+		format = adapter.result_format,
 		bang = opts.bang,
 	})
 	if not result_buf then

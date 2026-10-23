@@ -60,7 +60,7 @@ These are useful but not needed for the first working version:
 | Connections | `SQLUA_*`, `g:db`, `g:dbs`, `connections.json` |
 | Adapters | SQLite, PostgreSQL, MySQL/MariaDB; one file per adapter, one registry |
 | Execution | SQL goes to the CLI on stdin, output goes into a scratch buffer |
-| Results | Native CLI output, no parsing in v1 |
+| Results | CSV/TSV from the CLI, rendered as an aligned table |
 | Query files | Real temp files so `:w` works, metadata in `b:sqlua` |
 | Completion | Omni plus Blink, cached per connection, scoped columns only |
 | Tests | Plain Lua asserts, run through `nvim --headless` |
@@ -398,9 +398,12 @@ Default global maps, installed by `setup()`:
 
 - Scratch buffer named `sqlua://result/<n>`, `buftype=nofile`,
   `bufhidden=wipe`, `filetype=sqlua_result`.
-- Header: connection name, elapsed time, exit code, and the first line of the
-  query.
-- Then stdout, then stderr if non-empty.
+- Header: connection name, status, row count, elapsed time, exit code.
+- Results are parsed from adapter output: PostgreSQL/SQLite CSV, MySQL TSV.
+- Cells are padded, numeric columns right-aligned, NULL shown as `NULL`, and
+  cells longer than 60 display columns are trimmed with `…`.
+- Parse failures, multiple result sets, and non-tabular output fall back to raw
+  stdout. Stderr follows if non-empty.
 - Opened in a split without stealing focus. Reused for the same query buffer
   when possible.
 - `R` reruns the stored SQL, `<C-c>` cancels, `q` closes.
@@ -676,8 +679,8 @@ Copy them into `queries/<connection-key-slug>/` or keep using the old folder as
 1. Adapters: SQLite, PostgreSQL, MySQL/MariaDB. SQL Server is deferred because
    there is no test server. DuckDB, MongoDB, Redis, Oracle, BigQuery,
    ClickHouse, Snowflake, Presto/Trino, Impala, osquery, and jq are deferred.
-2. Results: native CLI output. No cell yank, folds, foreign-key jump, or layout
-   toggle in v1.
+2. Results: structured CLI output rendered as an aligned table, with raw
+   fallback. No cell yank, folds, foreign-key jump, or layout toggle in v1.
 3. Keep `:DB` alongside the `:Sqlua*` commands.
 4. Completion: Blink plus opt-in Omni. No `nvim-cmp`.
 5. Drawer: connection trees plus global Scratchpads and History. No

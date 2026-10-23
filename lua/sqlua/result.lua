@@ -1,15 +1,20 @@
 local config = require("sqlua.config")
 local job = require("sqlua.job")
+local result_table = require("sqlua.result_table")
 local util = require("sqlua.util")
 
 local M = {}
 local next_id = 1
 local jobs = {}
+local highlight_ns = vim.api.nvim_create_namespace("sqlua_result")
+
+vim.api.nvim_set_hl(0, "SqluaResultHeader", { link = "Title", default = true })
 
 local function set_lines(bufnr, lines)
 	if not vim.api.nvim_buf_is_valid(bufnr) then
 		return
 	end
+	vim.api.nvim_buf_clear_namespace(bufnr, highlight_ns, 0, -1)
 	vim.bo[bufnr].modifiable = true
 	vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
 	vim.bo[bufnr].modifiable = false
@@ -31,6 +36,7 @@ end
 local function style_window(win)
 	vim.wo[win].number = false
 	vim.wo[win].relativenumber = false
+	vim.wo[win].wrap = false
 end
 
 local function show(bufnr)
@@ -53,12 +59,31 @@ local function header(bufnr)
 	end
 	local elapsed = meta.elapsed and string.format("%.3fs", meta.elapsed) or "-"
 	local code = meta.code ~= nil and tostring(meta.code) or "-"
+	if meta.rows ~= nil then
+		return string.format(
+			"-- sqlua: %s | %s | %d rows | %s | exit %s",
+			name,
+			meta.status or "unknown",
+			meta.rows,
+			elapsed,
+			code
+		)
+	end
 	return string.format("-- sqlua: %s | %s | %s | exit %s", name, meta.status or "unknown", elapsed, code)
 end
 
-local function result_lines(bufnr, result)
+local function result_lines(bufnr, result, parsed)
 	local lines = { header(bufnr) }
 	local max_lines = config.get().result.max_lines or 10000
+	if not parsed then
+		local meta = get_meta(bufnr) or {}
+		if meta.format then
+			local columns, rows = result_table.table(result.stdout, meta.format)
+			if columns then
+				parsed = { columns = columns, rows = rows }
+			end
+		end
+	end
 
 	local function append(title, text)
 		if #lines >= max_lines then
@@ -80,7 +105,11 @@ local function result_lines(bufnr, result)
 		end
 	end
 
-	append(nil, result.stdout)
+	if parsed then
+		append(nil, table.concat(result_table.render(parsed.columns, parsed.rows), "\n"))
+	else
+		append(nil, result.stdout)
+	end
 	append("-- stderr", result.stderr)
 
 	if #lines == 1 then
@@ -123,6 +152,7 @@ function M.open(opts)
 		conn_key = opts.conn_key,
 		name = opts.name,
 		sql = opts.sql,
+		format = opts.format,
 		status = "running",
 		started = util.now_ns(),
 		generation = 1,
@@ -156,10 +186,12 @@ function M.reset(bufnr, opts)
 	meta.conn_key = opts.conn_key or meta.conn_key
 	meta.name = opts.name
 	meta.sql = opts.sql
+	meta.format = opts.format or meta.format
 	meta.status = "running"
 	meta.started = util.now_ns()
 	meta.code = nil
 	meta.elapsed = nil
+	meta.rows = nil
 	meta.generation = (meta.generation or 0) + 1
 	set_meta(bufnr, meta)
 	set_lines(bufnr, { header(bufnr) })
@@ -183,8 +215,20 @@ function M.update(bufnr, result)
 	else
 		meta.status = "error"
 	end
+
+	local parsed
+	if meta.format then
+		local columns, rows = result_table.table(result.stdout, meta.format)
+		if columns then
+			parsed = { columns = columns, rows = rows }
+		end
+	end
+	meta.rows = parsed and #parsed.rows or nil
 	set_meta(bufnr, meta)
-	set_lines(bufnr, result_lines(bufnr, result))
+	set_lines(bufnr, result_lines(bufnr, result, parsed))
+	if parsed then
+		vim.api.nvim_buf_add_highlight(bufnr, highlight_ns, "SqluaResultHeader", 1, 0, -1)
+	end
 end
 
 function M.set_job(bufnr, handle)

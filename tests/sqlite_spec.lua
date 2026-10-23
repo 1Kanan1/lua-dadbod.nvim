@@ -92,6 +92,24 @@ h.test("q closes a result window and its tab", function()
 	h.eq(#vim.api.nvim_list_tabpages(), 1)
 end)
 
+h.test("result buffers render a table", function()
+	local result_buf, err = execute.run(
+		"select 1 as id, 'Alice' as name union all select 2, 'Bob';",
+		{ conn = "sqlite::memory:" }
+	)
+	h.ok(result_buf, err)
+	h.ok(wait_for(function()
+		local meta = vim.b[result_buf].sqlua_result
+		return meta and meta.status ~= "running"
+	end), "table query did not finish")
+
+	local text = result_text(result_buf)
+	h.matches(text, "2 rows")
+	h.matches(text, "id  name")
+	h.matches(text, "Alice")
+	h.matches(text, "Bob")
+end)
+
 h.test(":DB runs a query", function()
 	local source = vim.api.nvim_get_current_buf()
 	vim.cmd("DB sqlite::memory: select 42 as answer")

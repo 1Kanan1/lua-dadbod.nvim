@@ -7,6 +7,7 @@ local M = {
 	binary = "sqlite3",
 	quote = { '"', '"' },
 	filetype = "sql",
+	result_format = "csv",
 	helpers = {
 		Columns = 'select name, type, "notnull", dflt_value, pk from pragma_table_info({table_lit})',
 	},
@@ -19,13 +20,10 @@ end
 function M.argv(parsed, opts)
 	local args = { M.binary }
 	if opts and opts.meta then
-		args[#args + 1] = "-noheader"
+		vim.list_extend(args, { "-noheader", "-separator", "\t" })
 	else
-		args[#args + 1] = "-header"
-		args[#args + 1] = "-column"
+		vim.list_extend(args, { "-csv", "-header", "-nullvalue", "NULL" })
 	end
-	args[#args + 1] = "-separator"
-	args[#args + 1] = "\t"
 	args[#args + 1] = url.file_path(parsed)
 	return args
 end

@@ -6,6 +6,7 @@ local M = {
 	binary = "mysql",
 	quote = { "`", "`" },
 	filetype = "sql",
+	result_format = "tsv",
 	helpers = {
 		Columns = "select column_name, column_type, is_nullable, column_default, column_key from information_schema.columns where table_schema = coalesce(nullif({schema_lit}, ''), database()) and table_name = {table_lit} order by ordinal_position",
 	},

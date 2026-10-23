@@ -8,16 +8,20 @@ local M = {
 	quote = { '"', '"' },
 	default_schema = "public",
 	filetype = "sql",
+	result_format = "csv",
 	helpers = {
 		Columns = "select column_name, data_type, is_nullable, column_default from information_schema.columns where table_schema = coalesce(nullif({schema_lit}, ''), current_schema()) and table_name = {table_lit} order by ordinal_position",
 	},
 }
 
 function M.argv(parsed, opts)
-	local args = { M.binary, "-X", "-v", "ON_ERROR_STOP=1", "-A", "-F", "\t", "-P", "footer=off", "-P", "pager=off" }
+	local args = { M.binary, "-X", "-v", "ON_ERROR_STOP=1" }
 	if opts and opts.meta then
-		args[#args + 1] = "-t"
+		vim.list_extend(args, { "-t", "-A", "-F", "\t" })
+	else
+		vim.list_extend(args, { "--csv", "-P", "null=NULL" })
 	end
+	vim.list_extend(args, { "-P", "footer=off", "-P", "pager=off" })
 	args[#args + 1] = url.format(parsed)
 	return args
 end
