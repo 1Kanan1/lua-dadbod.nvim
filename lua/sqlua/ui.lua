@@ -225,6 +225,18 @@ function M.set_active(key)
 	end
 end
 
+function M.deactivate(key)
+	state.activated[key] = nil
+	if state.active ~= key then
+		return
+	end
+	state.active = nil
+	for other in pairs(state.activated) do
+		state.active = other
+		break
+	end
+end
+
 function M.is_activated(key)
 	return key ~= nil and state.activated[key] == true
 end

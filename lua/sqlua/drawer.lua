@@ -279,16 +279,7 @@ local function add_connection_rows(add, entry, icons)
 		suffix = entry.loading and "(loading...)" or ("(" .. #tables .. ")"),
 		key = entry.key,
 		body = function()
-			if entry.error then
-				add({
-					kind = "help",
-					level = 2,
-					icon = "!",
-					label = entry.error,
-					label_hl = "DiagnosticError",
-					key = entry.key,
-				})
-			elseif entry.loading then
+			if entry.loading then
 				add({ kind = "help", level = 2, label = "loading...", label_hl = "SqluaHelp", key = entry.key })
 			elseif #tables == 0 then
 				add({ kind = "help", level = 2, label = "(no tables)", label_hl = "SqluaHelp", key = entry.key })
@@ -442,6 +433,10 @@ function M.fetch(entry)
 		if err then
 			current.error = err
 			current.tables = {}
+			current.expanded = false
+			current.tables_expanded = false
+			ui.deactivate(key)
+			util.error(current.name .. ": " .. err)
 		else
 			current.tables = tables or {}
 		end
@@ -516,6 +511,10 @@ function M.select(mode)
 	if row.kind == "conn" then
 		local entry = ui.get(row.key)
 		if not entry then
+			return
+		end
+		if entry.error then
+			util.error(entry.name .. ": " .. entry.error)
 			return
 		end
 		ui.set_active(entry.key)
@@ -652,18 +651,21 @@ function M.new_scratchpad()
 			entry = connections[1]
 		else
 			ui.pick("New scratchpad connection", function(selected)
-				ui.set_active(selected.key)
 				M.open_new_scratchpad(selected)
 			end)
 			return
 		end
 	end
 
-	ui.set_active(entry.key)
 	M.open_new_scratchpad(entry)
 end
 
 function M.open_new_scratchpad(entry)
+	if entry.error then
+		util.error(entry.name .. ": " .. entry.error)
+		return
+	end
+	ui.set_active(entry.key)
 	local bufnr, err = query.open(entry, {})
 	if not bufnr then
 		util.error(err)
@@ -725,11 +727,12 @@ function M.refresh()
 	local entry = row and row.key and ui.get(row.key) or nil
 
 	if entry then
+		local had_error = entry.error ~= nil
 		entry.loaded = false
 		entry.error = nil
 		entry.tables = {}
 		db.clear_meta(entry.url)
-		if entry.expanded then
+		if entry.expanded or had_error then
 			M.fetch(entry)
 		end
 	else

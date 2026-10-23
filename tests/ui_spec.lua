@@ -471,6 +471,70 @@ h.test("drawer expands a connection and opens a table", function()
 	restore_globals(previous, directory)
 end)
 
+h.test("failed connections collapse and stay inactive", function()
+	local previous = {
+		db = vim.g.db,
+		dbs = vim.g.dbs,
+		url = vim.env.SQLUA_URL,
+		name = vim.env.SQLUA_NAME,
+		save = config.get().save_location,
+		tmp = config.get().tmp_location,
+	}
+	local directory = vim.fn.tempname()
+	config.setup({
+		save_location = directory .. "/sqlua",
+		tmp_location = directory .. "/queries",
+	})
+	vim.g.dbs = { broken = "sqlite:" .. directory .. "/missing/test.db" }
+	ui.reset()
+
+	local notices = {}
+	local previous_notify = vim.notify
+	vim.notify = function(message, level)
+		notices[#notices + 1] = { message, level }
+	end
+
+	local drawer = require("sqlua.drawer")
+	drawer.open()
+	local conn_line
+	for index, row in ipairs(drawer.rows) do
+		if row.kind == "conn" then
+			conn_line = index
+		end
+	end
+	vim.api.nvim_win_set_cursor(0, { conn_line, 0 })
+	drawer.select("edit")
+
+	local entry = ui.get("broken_g:dbs")
+	local loaded = vim.wait(5000, function()
+		return entry.loaded
+	end)
+
+	local drawer_win = drawer.find_win()
+	vim.api.nvim_set_current_win(drawer_win)
+	vim.api.nvim_win_set_cursor(0, { conn_line, 0 })
+	drawer.select("edit")
+	vim.notify = previous_notify
+
+	h.ok(loaded, "metadata did not finish")
+	h.ok(entry.error)
+	h.eq(entry.expanded, false)
+	h.eq(ui.is_activated(entry.key), false)
+	h.eq(ui.active(), nil)
+
+	local notified = false
+	for _, notice in ipairs(notices) do
+		if notice[2] == vim.log.levels.ERROR and notice[1]:find(entry.error, 1, true) then
+			notified = true
+		end
+	end
+	h.eq(notified, true)
+
+	drawer.close()
+	pcall(vim.cmd, "silent! only")
+	restore_globals(previous, directory)
+end)
+
 h.test("global mappings follow setup", function()
 	local sqlua = require("sqlua")
 	sqlua.setup({ mappings = { global = true } })
