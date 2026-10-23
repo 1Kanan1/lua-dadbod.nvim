@@ -175,7 +175,7 @@ Each adapter is a table:
 ---@field supports_schemas? fun(url): boolean
 ---@field filetype? string                -- defaults to "sql"
 ---@field argv fun(url, opts): string[], table|nil
----@field interactive? fun(url): string[]
+---@field interactive? fun(url): string[], table|nil
 ---@field helpers? table<string, string>
 ---@field schemas_sql? fun(ctx): string
 ---@field tables_sql? fun(ctx): string
@@ -184,7 +184,8 @@ Each adapter is a table:
 
 - `argv(url, opts)` returns the command and an optional environment table.
   `opts.meta = true` means machine-readable output with no header.
-- `interactive(url)` returns the command for a terminal console.
+- `interactive(url)` returns the command and optional environment for a
+  terminal console.
 - `ctx` carries `{ schema, table, db }` and helpers for quoting.
 - `helpers` holds the table helpers. `List` is the default query and is what
   `Enter` runs. `Columns` is built in for all core adapters. Indexes, foreign

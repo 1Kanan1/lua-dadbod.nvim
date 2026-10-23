@@ -265,12 +265,12 @@ function M.console(connection, bufnr)
 		return nil, err
 	end
 
-	local argv = adapter.interactive(parsed)
+	local argv, env = adapter.interactive(parsed)
 	local previous = vim.api.nvim_get_current_win()
 	vim.cmd("botright new")
 	local buf = vim.api.nvim_get_current_buf()
 
-	local started, job_id = pcall(vim.fn.jobstart, argv, { term = true })
+	local started, job_id = pcall(vim.fn.jobstart, argv, { term = true, env = env })
 	if not started or type(job_id) ~= "number" or job_id <= 0 then
 		vim.api.nvim_set_current_win(previous)
 		return nil, "failed to start interactive console"

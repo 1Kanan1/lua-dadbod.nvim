@@ -168,7 +168,11 @@ function M.fetch_tables(input, callback)
 		return
 	end
 
-	local ok, statement = pcall(adapter.tables_sql, {})
+	local ctx = {
+		schema = adapter.default_schema,
+		db = parsed.path and parsed.path:gsub("^/", "") or nil,
+	}
+	local ok, statement = pcall(adapter.tables_sql, ctx)
 	if not ok or type(statement) ~= "string" or util.trim(statement) == "" then
 		callback(nil, "adapter returned no table metadata query: " .. adapter.name)
 		return

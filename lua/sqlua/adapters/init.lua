@@ -70,5 +70,7 @@ function M.aliases()
 end
 
 M.register(require("sqlua.adapters.sqlite"))
+M.register(require("sqlua.adapters.postgresql"))
+M.register(require("sqlua.adapters.mysql"))
 
 return M

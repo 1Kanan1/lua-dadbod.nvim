@@ -1,0 +1,54 @@
+local sql = require("sqlua.sql")
+local url = require("sqlua.url")
+
+local M = {
+	name = "postgresql",
+	aliases = { postgres = true },
+	binary = "psql",
+	quote = { '"', '"' },
+	default_schema = "public",
+	filetype = "sql",
+	helpers = {
+		Columns = "select column_name, data_type, is_nullable, column_default from information_schema.columns where table_schema = coalesce(nullif({schema_lit}, ''), current_schema()) and table_name = {table_lit} order by ordinal_position",
+	},
+}
+
+function M.argv(parsed, opts)
+	local args = { M.binary, "-X", "-v", "ON_ERROR_STOP=1", "-A", "-F", "\t", "-P", "footer=off", "-P", "pager=off" }
+	if opts and opts.meta then
+		args[#args + 1] = "-t"
+	end
+	args[#args + 1] = url.format(parsed)
+	return args
+end
+
+function M.interactive(parsed)
+	return { M.binary, url.format(parsed) }
+end
+
+function M.tables_sql(ctx)
+	local schema = ctx and ctx.schema or M.default_schema
+	return "select table_name from information_schema.tables where table_schema = "
+		.. sql.literal(schema)
+		.. " and table_type in ('BASE TABLE','VIEW') order by table_name"
+end
+
+function M.schemas_sql()
+	return "select schema_name from information_schema.schemata order by schema_name"
+end
+
+function M.columns_sql(ctx)
+	ctx = ctx or {}
+	local schema = ctx.schema and ctx.schema ~= "" and sql.literal(ctx.schema) or "current_schema()"
+	return "select column_name, data_type, is_nullable, column_default from information_schema.columns where table_schema = "
+		.. schema
+		.. " and table_name = "
+		.. sql.literal(ctx.table)
+		.. " order by ordinal_position"
+end
+
+function M.supports_schemas()
+	return true
+end
+
+return M
