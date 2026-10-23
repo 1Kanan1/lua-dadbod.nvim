@@ -1,7 +1,7 @@
-local adapters = require("sqlua.adapters")
-local job = require("sqlua.job")
-local url = require("sqlua.url")
-local util = require("sqlua.util")
+local adapters = require("lua-dadbod.adapters")
+local job = require("lua-dadbod.job")
+local url = require("lua-dadbod.url")
+local util = require("lua-dadbod.util")
 
 local M = {}
 
@@ -110,7 +110,7 @@ function M.resolve_buffer(bufnr)
 		return nil, "invalid buffer"
 	end
 
-	local meta = vim.b[bufnr].sqlua
+	local meta = vim.b[bufnr].lua_dadbod
 	if type(meta) == "table" then
 		local value = meta.conn or meta.url
 		if type(value) == "string" and value ~= "" then
@@ -165,7 +165,7 @@ end
 
 function M.fetch_schemas(input, callback)
 	if type(callback) ~= "function" then
-		error("sqlua.db.fetch_schemas: callback must be a function")
+		error("lua-dadbod.db.fetch_schemas: callback must be a function")
 	end
 
 	local parsed, adapter = M.parse(input)
@@ -222,7 +222,7 @@ function M.fetch_tables(input, schema, callback)
 		schema = nil
 	end
 	if type(callback) ~= "function" then
-		error("sqlua.db.fetch_tables: callback must be a function")
+		error("lua-dadbod.db.fetch_tables: callback must be a function")
 	end
 
 	local parsed, adapter = M.parse(input)

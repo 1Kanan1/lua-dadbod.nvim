@@ -1,8 +1,8 @@
-local config = require("sqlua.config")
-local db = require("sqlua.db")
-local sql = require("sqlua.sql")
-local url = require("sqlua.url")
-local util = require("sqlua.util")
+local config = require("lua-dadbod.config")
+local db = require("lua-dadbod.db")
+local sql = require("lua-dadbod.sql")
+local url = require("lua-dadbod.url")
+local util = require("lua-dadbod.util")
 
 local M = {}
 
@@ -223,7 +223,7 @@ end
 
 local function apply_connection_meta(bufnr, ctx, opts)
 	opts = opts or {}
-	local meta = vim.b[bufnr].sqlua
+	local meta = vim.b[bufnr].lua_dadbod
 	if type(meta) ~= "table" then
 		meta = {}
 	end
@@ -239,7 +239,7 @@ local function apply_connection_meta(bufnr, ctx, opts)
 	if opts.path then
 		meta.path = opts.path
 	end
-	vim.b[bufnr].sqlua = meta
+	vim.b[bufnr].lua_dadbod = meta
 	return meta
 end
 
@@ -251,19 +251,19 @@ local function setup_buffer(bufnr, adapter)
 	if config.mappings_enabled("query") then
 		vim.keymap.set("n", "<Leader>S", function()
 			M.run(bufnr)
-		end, { buffer = bufnr, silent = true, desc = "Run sqlua query" })
+		end, { buffer = bufnr, silent = true, desc = "Run lua-dadbod query" })
 		vim.keymap.set("v", "<Leader>S", function()
 			M.run_visual(bufnr)
-		end, { buffer = bufnr, silent = true, desc = "Run sqlua selection" })
+		end, { buffer = bufnr, silent = true, desc = "Run lua-dadbod selection" })
 		vim.keymap.set("n", "<Leader>W", function()
 			M.save(bufnr)
-		end, { buffer = bufnr, silent = true, desc = "Save sqlua query" })
+		end, { buffer = bufnr, silent = true, desc = "Save lua-dadbod query" })
 		vim.keymap.set("n", "<Leader>E", function()
 			M.edit_bind(bufnr)
-		end, { buffer = bufnr, silent = true, desc = "Edit sqlua bind parameters" })
+		end, { buffer = bufnr, silent = true, desc = "Edit lua-dadbod bind parameters" })
 	end
 
-	local group = vim.api.nvim_create_augroup("sqlua_query_" .. bufnr, { clear = true })
+	local group = vim.api.nvim_create_augroup("lua_dadbod_query_" .. bufnr, { clear = true })
 	vim.api.nvim_create_autocmd("BufWritePost", {
 		group = group,
 		buffer = bufnr,
@@ -277,7 +277,7 @@ local function setup_buffer(bufnr, adapter)
 		group = group,
 		buffer = bufnr,
 		callback = function()
-			local drawer = package.loaded["sqlua.drawer"]
+			local drawer = package.loaded["lua-dadbod.drawer"]
 			if drawer and drawer.is_open() then
 				pcall(drawer.render)
 			end
@@ -327,7 +327,7 @@ function M.open(connection, opts)
 	meta.table = opts.table or ""
 	meta.helper = opts.helper or ""
 	meta.result_buf = nil
-	vim.b[bufnr].sqlua = meta
+	vim.b[bufnr].lua_dadbod = meta
 
 	local content = opts.sql
 	if not content and opts.table and opts.table ~= "" then
@@ -419,7 +419,7 @@ function M.attach(connection, bufnr, opts)
 		return nil, err
 	end
 
-	local current = vim.b[bufnr].sqlua
+	local current = vim.b[bufnr].lua_dadbod
 	local source = opts.source or (type(current) == "table" and current.source) or "attached"
 	apply_connection_meta(bufnr, ctx, { source = source, path = opts.path })
 	setup_buffer(bufnr, ctx.adapter)
@@ -445,7 +445,7 @@ end
 
 function M.run(bufnr)
 	bufnr = bufnr or vim.api.nvim_get_current_buf()
-	return require("sqlua.execute").run_buffer({ bufnr = bufnr })
+	return require("lua-dadbod.execute").run_buffer({ bufnr = bufnr })
 end
 
 function M.run_visual(bufnr)
@@ -459,7 +459,7 @@ function M.run_visual(bufnr)
 	if start > finish then
 		start, finish = finish, start
 	end
-	return require("sqlua.execute").run_buffer({
+	return require("lua-dadbod.execute").run_buffer({
 		bufnr = bufnr,
 		line1 = start,
 		line2 = finish,
@@ -472,7 +472,7 @@ function M.save_as(bufnr, name)
 		return nil, "invalid buffer"
 	end
 
-	local meta = vim.b[bufnr].sqlua
+	local meta = vim.b[bufnr].lua_dadbod
 	if type(meta) ~= "table" or not meta.conn then
 		return nil, "buffer is not attached to a connection"
 	end
@@ -502,9 +502,9 @@ function M.save_as(bufnr, name)
 
 	meta.source = "saved"
 	meta.path = vim.api.nvim_buf_get_name(bufnr)
-	vim.b[bufnr].sqlua = meta
+	vim.b[bufnr].lua_dadbod = meta
 
-	local drawer = package.loaded["sqlua.drawer"]
+	local drawer = package.loaded["lua-dadbod.drawer"]
 	if drawer and drawer.is_open() then
 		pcall(drawer.render)
 	end
@@ -543,10 +543,10 @@ function M.rename_file(old_path, new_name)
 	if bufnr ~= -1 and vim.api.nvim_buf_is_valid(bufnr) then
 		vim.api.nvim_buf_set_name(bufnr, new_path)
 		local buffer_path = vim.api.nvim_buf_get_name(bufnr)
-		local meta = vim.b[bufnr].sqlua
+		local meta = vim.b[bufnr].lua_dadbod
 		if type(meta) == "table" then
 			meta.path = buffer_path
-			vim.b[bufnr].sqlua = meta
+			vim.b[bufnr].lua_dadbod = meta
 		end
 		return buffer_path
 	end
@@ -589,7 +589,7 @@ end
 
 function M.save(bufnr)
 	bufnr = bufnr or vim.api.nvim_get_current_buf()
-	local meta = vim.b[bufnr].sqlua
+	local meta = vim.b[bufnr].lua_dadbod
 	local default = type(meta) == "table" and meta.table or "query"
 	if default == nil or default == "" then
 		default = "query"
@@ -606,7 +606,7 @@ end
 
 function M.edit_bind(bufnr)
 	bufnr = bufnr or vim.api.nvim_get_current_buf()
-	local meta = vim.b[bufnr].sqlua
+	local meta = vim.b[bufnr].lua_dadbod
 	if type(meta) ~= "table" then
 		util.warn("buffer is not attached to a connection")
 		return
@@ -633,7 +633,7 @@ function M.edit_bind(bufnr)
 		end
 		if index == #choices then
 			meta.bind = {}
-			vim.b[bufnr].sqlua = meta
+			vim.b[bufnr].lua_dadbod = meta
 			util.notify("cleared bind parameters")
 			return
 		end
@@ -649,7 +649,7 @@ function M.edit_bind(bufnr)
 				bind[key] = value
 			end
 			meta.bind = bind
-			vim.b[bufnr].sqlua = meta
+			vim.b[bufnr].lua_dadbod = meta
 			util.notify("updated " .. key)
 		end)
 	end)

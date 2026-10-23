@@ -1,7 +1,7 @@
-local db = require("sqlua.db")
-local result = require("sqlua.result")
-local url = require("sqlua.url")
-local util = require("sqlua.util")
+local db = require("lua-dadbod.db")
+local result = require("lua-dadbod.result")
+local url = require("lua-dadbod.url")
+local util = require("lua-dadbod.util")
 
 local M = {}
 
@@ -21,9 +21,9 @@ local function source_buffer(opts)
 end
 
 local function result_for(source, opts)
-	local existing = vim.b[source].sqlua_result_buf
+	local existing = vim.b[source].lua_dadbod_result_buf
 	if existing and vim.api.nvim_buf_is_valid(existing) and not opts.bang then
-		local meta = vim.b[existing].sqlua_result
+		local meta = vim.b[existing].lua_dadbod_result
 		if meta and meta.status == "running" then
 			return nil, "a query is already running for this buffer; use :DB! to start another"
 		end
@@ -32,7 +32,7 @@ local function result_for(source, opts)
 	end
 
 	local bufnr = result.open(opts)
-	vim.b[source].sqlua_result_buf = bufnr
+	vim.b[source].lua_dadbod_result_buf = bufnr
 	return bufnr
 end
 
@@ -59,7 +59,7 @@ function M.run(sql, opts, callback)
 	end
 
 	local canonical = url.format(parsed)
-	local ui = require("sqlua.ui")
+	local ui = require("lua-dadbod.ui")
 	local configured = opts.conn_key and ui.get(opts.conn_key) or nil
 	if not configured then
 		configured = ui.find_by_url(canonical)
@@ -80,9 +80,9 @@ function M.run(sql, opts, callback)
 		return nil, result_err
 	end
 
-	local generation = vim.b[result_buf].sqlua_result.generation
+	local generation = vim.b[result_buf].lua_dadbod_result.generation
 
-	emit("SqluaQueryPre", {
+	emit("LuaDadbodQueryPre", {
 		conn = display,
 		sql = sql,
 	})
@@ -90,7 +90,7 @@ function M.run(sql, opts, callback)
 	local handle, run_err = db.run(canonical, sql, {
 		timeout = opts.timeout,
 	}, function(query_result)
-		require("sqlua.history").add({
+		require("lua-dadbod.history").add({
 			conn = canonical,
 			dbms = adapter.name,
 			name = history_name,
@@ -102,12 +102,12 @@ function M.run(sql, opts, callback)
 			timed_out = query_result.timed_out,
 		})
 
-		local current = vim.api.nvim_buf_is_valid(result_buf) and vim.b[result_buf].sqlua_result or nil
+		local current = vim.api.nvim_buf_is_valid(result_buf) and vim.b[result_buf].lua_dadbod_result or nil
 		local is_current = current ~= nil and current.generation == generation
 		if is_current then
 			result.update(result_buf, query_result)
 		end
-		emit("SqluaQueryPost", {
+		emit("LuaDadbodQueryPost", {
 			conn = display,
 			sql = sql,
 			code = query_result.code,
@@ -128,7 +128,7 @@ function M.run(sql, opts, callback)
 			elapsed = 0,
 			timed_out = false,
 		})
-		emit("SqluaQueryPost", {
+		emit("LuaDadbodQueryPost", {
 			conn = display,
 			sql = sql,
 			code = 1,
@@ -158,13 +158,13 @@ function M.run_buffer(opts)
 		return nil, "empty query"
 	end
 
-	local meta = vim.b[bufnr].sqlua or {}
+	local meta = vim.b[bufnr].lua_dadbod or {}
 	local bind = meta.bind or {}
-	local query = require("sqlua.query")
+	local query = require("lua-dadbod.query")
 
 	query.resolve_binds(statement, bind, function(resolved, updated_bind)
 		meta.bind = updated_bind
-		vim.b[bufnr].sqlua = meta
+		vim.b[bufnr].lua_dadbod = meta
 		M.run(resolved, {
 			bufnr = bufnr,
 			conn = opts.conn or meta.conn or meta.url,

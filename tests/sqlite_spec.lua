@@ -1,6 +1,6 @@
 local h = require("tests.harness")
-local db = require("sqlua.db")
-local execute = require("sqlua.execute")
+local db = require("lua-dadbod.db")
+local execute = require("lua-dadbod.execute")
 
 local function wait_for(predicate)
 	return vim.wait(5000, predicate, 10)
@@ -62,14 +62,14 @@ h.test("execute.run creates a result buffer", function()
 	local result_buf, err = execute.run("select 1 as x;", { conn = "sqlite::memory:" })
 	h.ok(result_buf, err)
 	h.ok(wait_for(function()
-		local meta = vim.b[result_buf].sqlua_result
+		local meta = vim.b[result_buf].lua_dadbod_result
 		return meta and meta.status ~= "running"
 	end), "result did not finish")
-	local meta = vim.b[result_buf].sqlua_result
+	local meta = vim.b[result_buf].lua_dadbod_result
 	h.eq(meta.status, "done")
 	h.eq(meta.code, 0)
 	h.matches(result_text(result_buf), "1")
-	h.eq(vim.b[source].sqlua_result_buf, result_buf)
+	h.eq(vim.b[source].lua_dadbod_result_buf, result_buf)
 	local result_win = vim.fn.win_findbuf(result_buf)[1]
 	h.ok(result_win, "result window not found")
 	h.eq(vim.wo[result_win].number, false)
@@ -82,9 +82,9 @@ h.test("q closes a result window and its tab", function()
 	local bufnr = vim.api.nvim_create_buf(false, true)
 	vim.bo[bufnr].bufhidden = "wipe"
 	vim.bo[bufnr].buftype = "nofile"
-	vim.bo[bufnr].filetype = "sqlua_result"
+	vim.bo[bufnr].filetype = "lua_dadbod_result"
 	vim.api.nvim_win_set_buf(0, bufnr)
-	require("sqlua.result").keymaps(bufnr)
+	require("lua-dadbod.result").keymaps(bufnr)
 
 	vim.cmd("normal q")
 
@@ -99,7 +99,7 @@ h.test("result buffers render a table", function()
 	)
 	h.ok(result_buf, err)
 	h.ok(wait_for(function()
-		local meta = vim.b[result_buf].sqlua_result
+		local meta = vim.b[result_buf].lua_dadbod_result
 		return meta and meta.status ~= "running"
 	end), "table query did not finish")
 
@@ -114,14 +114,14 @@ h.test(":DB runs a query", function()
 	local source = vim.api.nvim_get_current_buf()
 	vim.cmd("DB sqlite::memory: select 42 as answer")
 	h.ok(wait_for(function()
-		local result_buf = vim.b[source].sqlua_result_buf
+		local result_buf = vim.b[source].lua_dadbod_result_buf
 		if not result_buf or not vim.api.nvim_buf_is_valid(result_buf) then
 			return false
 		end
-		local meta = vim.b[result_buf].sqlua_result
+		local meta = vim.b[result_buf].lua_dadbod_result
 		return meta and meta.status ~= "running"
 	end), "DB command did not finish")
-	h.matches(result_text(vim.b[source].sqlua_result_buf), "42")
+	h.matches(result_text(vim.b[source].lua_dadbod_result_buf), "42")
 end)
 
 h.test(":DB runs a range", function()
@@ -129,14 +129,14 @@ h.test(":DB runs a range", function()
 	vim.api.nvim_buf_set_lines(source, 0, -1, false, { "select 7 as seven;" })
 	vim.cmd("%DB sqlite::memory:")
 	h.ok(wait_for(function()
-		local result_buf = vim.b[source].sqlua_result_buf
+		local result_buf = vim.b[source].lua_dadbod_result_buf
 		if not result_buf or not vim.api.nvim_buf_is_valid(result_buf) then
 			return false
 		end
-		local meta = vim.b[result_buf].sqlua_result
+		local meta = vim.b[result_buf].lua_dadbod_result
 		return meta and meta.status ~= "running"
 	end), "range DB command did not finish")
-	h.matches(result_text(vim.b[source].sqlua_result_buf), "7")
+	h.matches(result_text(vim.b[source].lua_dadbod_result_buf), "7")
 end)
 
 h.test("result reruns the stored query", function()
@@ -145,14 +145,14 @@ h.test("result reruns the stored query", function()
 	local result_buf, err = execute.run("select 5 as five;", { conn = "sqlite::memory:" })
 	h.ok(result_buf, err)
 	h.ok(wait_for(function()
-		local meta = vim.b[result_buf].sqlua_result
+		local meta = vim.b[result_buf].lua_dadbod_result
 		return meta and meta.status == "done"
 	end), "first run did not finish")
 	h.matches(result_text(result_buf), "5")
 
-	require("sqlua.result").rerun(result_buf)
+	require("lua-dadbod.result").rerun(result_buf)
 	h.ok(wait_for(function()
-		local meta = vim.b[result_buf].sqlua_result
+		local meta = vim.b[result_buf].lua_dadbod_result
 		return meta and meta.status == "done"
 	end), "rerun did not finish")
 	h.matches(result_text(result_buf), "5")
@@ -167,16 +167,16 @@ h.test("result cancels a running query", function()
 	)
 	h.ok(result_buf, err)
 	vim.wait(100)
-	require("sqlua.result").cancel(result_buf)
+	require("lua-dadbod.result").cancel(result_buf)
 	h.ok(wait_for(function()
-		local meta = vim.b[result_buf].sqlua_result
+		local meta = vim.b[result_buf].lua_dadbod_result
 		return meta and meta.status ~= "running"
 	end), "cancel did not finish")
-	h.eq(vim.b[result_buf].sqlua_result.status, "aborted")
+	h.eq(vim.b[result_buf].lua_dadbod_result.status, "aborted")
 end)
 
 h.test("query buffer builds helper SQL", function()
-	local query = require("sqlua.query")
+	local query = require("lua-dadbod.query")
 	local bufnr, err = query.open("sqlite::memory:", {
 		table = "users",
 		helper = "List",

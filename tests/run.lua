@@ -9,7 +9,7 @@ package.path = table.concat({
 }, ";")
 
 vim.opt.runtimepath:append(root)
-vim.cmd("runtime plugin/sqlua.lua")
+vim.cmd("runtime plugin/lua-dadbod.lua")
 
 vim.notify = function(message, level)
 	if level == vim.log.levels.ERROR then

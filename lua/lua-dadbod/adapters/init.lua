@@ -4,9 +4,9 @@ local by_name = {}
 local alias_to_name = {}
 
 function M.register(adapter)
-	assert(type(adapter) == "table", "sqlua.adapters: adapter must be a table")
-	assert(type(adapter.name) == "string" and adapter.name ~= "", "sqlua.adapters: adapter.name is required")
-	assert(type(adapter.argv) == "function", "sqlua.adapters: adapter.argv is required for " .. adapter.name)
+	assert(type(adapter) == "table", "lua-dadbod.adapters: adapter must be a table")
+	assert(type(adapter.name) == "string" and adapter.name ~= "", "lua-dadbod.adapters: adapter.name is required")
+	assert(type(adapter.argv) == "function", "lua-dadbod.adapters: adapter.argv is required for " .. adapter.name)
 
 	by_name[adapter.name] = adapter
 	for alias in pairs(adapter.aliases or {}) do
@@ -69,8 +69,8 @@ function M.aliases()
 	return vim.deepcopy(alias_to_name)
 end
 
-M.register(require("sqlua.adapters.sqlite"))
-M.register(require("sqlua.adapters.postgresql"))
-M.register(require("sqlua.adapters.mysql"))
+M.register(require("lua-dadbod.adapters.sqlite"))
+M.register(require("lua-dadbod.adapters.postgresql"))
+M.register(require("lua-dadbod.adapters.mysql"))
 
 return M

@@ -1,9 +1,9 @@
-local config = require("sqlua.config")
-local db = require("sqlua.db")
-local history = require("sqlua.history")
-local query = require("sqlua.query")
-local ui = require("sqlua.ui")
-local util = require("sqlua.util")
+local config = require("lua-dadbod.config")
+local db = require("lua-dadbod.db")
+local history = require("lua-dadbod.history")
+local query = require("lua-dadbod.query")
+local ui = require("lua-dadbod.ui")
+local util = require("lua-dadbod.util")
 
 local M = {
 	rows = {},
@@ -28,7 +28,7 @@ local keymaps = {
 	{ "?", function() M.help() end, "help" },
 }
 
-local highlight_ns = vim.api.nvim_create_namespace("sqlua_drawer")
+local highlight_ns = vim.api.nvim_create_namespace("lua_dadbod_drawer")
 local highlights_ready = false
 
 local function setup_highlights()
@@ -38,17 +38,17 @@ local function setup_highlights()
 	highlights_ready = true
 
 	local groups = {
-		SqluaChevron = "Comment",
-		SqluaDb = "Normal",
-		SqluaTable = "Function",
-		SqluaSchema = "Type",
-		SqluaScratchpads = "WarningMsg",
-		SqluaScratchpad = "Normal",
-		SqluaHistory = "DiagnosticOk",
-		SqluaHistoryEntry = "Comment",
-		SqluaHelp = "Comment",
-		SqluaCount = "Comment",
-		SqluaActive = "DiagnosticOk",
+		LuaDadbodChevron = "Comment",
+		LuaDadbodDb = "Normal",
+		LuaDadbodTable = "Function",
+		LuaDadbodSchema = "Type",
+		LuaDadbodScratchpads = "WarningMsg",
+		LuaDadbodScratchpad = "Normal",
+		LuaDadbodHistory = "DiagnosticOk",
+		LuaDadbodHistoryEntry = "Comment",
+		LuaDadbodHelp = "Comment",
+		LuaDadbodCount = "Comment",
+		LuaDadbodActive = "DiagnosticOk",
 	}
 	for name, link in pairs(groups) do
 		vim.api.nvim_set_hl(0, name, { link = link, default = true })
@@ -76,14 +76,14 @@ local function row_display(row)
 	if expand_icon ~= "" then
 		local start = #text
 		text = text .. expand_icon
-		highlights[#highlights + 1] = { start, #text, "SqluaChevron" }
+		highlights[#highlights + 1] = { start, #text, "LuaDadbodChevron" }
 		text = text .. " "
 	end
 
 	if type_icon ~= "" then
 		local start = #text
 		text = text .. type_icon
-		highlights[#highlights + 1] = { start, #text, row.icon_hl or "SqluaChevron" }
+		highlights[#highlights + 1] = { start, #text, row.icon_hl or "LuaDadbodChevron" }
 		text = text .. " "
 	end
 
@@ -96,13 +96,13 @@ local function row_display(row)
 	if suffix ~= "" then
 		local start = #text + 1
 		text = text .. " " .. suffix
-		highlights[#highlights + 1] = { start, #text, "SqluaCount" }
+		highlights[#highlights + 1] = { start, #text, "LuaDadbodCount" }
 	end
 
 	if marker ~= "" then
 		local start = #text + 1
 		text = text .. " " .. marker
-		highlights[#highlights + 1] = { start, #text, "SqluaActive" }
+		highlights[#highlights + 1] = { start, #text, "LuaDadbodActive" }
 	end
 
 	return text, highlights
@@ -111,7 +111,7 @@ end
 function M.find_win()
 	for _, win in ipairs(vim.api.nvim_list_wins()) do
 		local buf = vim.api.nvim_win_get_buf(win)
-		if vim.b[buf].sqlua_drawer then
+		if vim.b[buf].lua_dadbod_drawer then
 			return win, buf
 		end
 	end
@@ -137,13 +137,13 @@ function M.open()
 	win = vim.api.nvim_get_current_win()
 	buf = vim.api.nvim_get_current_buf()
 
-	vim.b[buf].sqlua_drawer = true
+	vim.b[buf].lua_dadbod_drawer = true
 	vim.bo[buf].buftype = "nofile"
 	vim.bo[buf].bufhidden = "wipe"
 	vim.bo[buf].swapfile = false
 	vim.bo[buf].buflisted = false
 	vim.bo[buf].modifiable = false
-	vim.bo[buf].filetype = "sqlua"
+	vim.bo[buf].filetype = "lua_dadbod"
 
 	vim.wo[win].winfixwidth = true
 	vim.wo[win].number = false
@@ -185,7 +185,7 @@ function M.setup_keymaps(buf)
 			buffer = buf,
 			silent = true,
 			nowait = true,
-			desc = "sqlua: " .. item[3],
+			desc = "lua-dadbod: " .. item[3],
 		})
 	end
 end
@@ -225,7 +225,7 @@ local function add_list_section(add, opts)
 		suffix = opts.suffix,
 		body = function()
 			if #opts.items == 0 then
-				add({ kind = "help", level = opts.level + 1, label = opts.empty, label_hl = "SqluaHelp" })
+				add({ kind = "help", level = opts.level + 1, label = opts.empty, label_hl = "LuaDadbodHelp" })
 				return
 			end
 			for _, item in ipairs(opts.items) do
@@ -259,7 +259,7 @@ local function add_table_section(add, entry, icons, level, schema, state)
 		expanded = state.tables_expanded,
 		icons = icons,
 		type_icon = icons.table,
-		icon_hl = "SqluaTable",
+		icon_hl = "LuaDadbodTable",
 		label = "Tables",
 		suffix = state.loading and "(loading...)" or ("(" .. #tables .. ")"),
 		key = entry.key,
@@ -269,7 +269,7 @@ local function add_table_section(add, entry, icons, level, schema, state)
 					kind = "help",
 					level = level + 1,
 					label = "loading...",
-					label_hl = "SqluaHelp",
+					label_hl = "LuaDadbodHelp",
 					key = entry.key,
 				})
 			elseif #tables == 0 then
@@ -277,7 +277,7 @@ local function add_table_section(add, entry, icons, level, schema, state)
 					kind = "help",
 					level = level + 1,
 					label = "(no tables)",
-					label_hl = "SqluaHelp",
+					label_hl = "LuaDadbodHelp",
 					key = entry.key,
 				})
 			else
@@ -286,7 +286,7 @@ local function add_table_section(add, entry, icons, level, schema, state)
 						kind = "table",
 						level = level + 1,
 						type_icon = icons.table,
-						icon_hl = "SqluaTable",
+						icon_hl = "LuaDadbodTable",
 						label = table_name,
 						table = table_name,
 						schema = schema,
@@ -320,7 +320,7 @@ local function add_connection_rows(add, entry, icons)
 		level = 0,
 		icon = entry.expanded and expanded or collapsed,
 		type_icon = icons.db,
-		icon_hl = "SqluaDb",
+		icon_hl = "LuaDadbodDb",
 		label = ui.connection_label(entry.dbms, entry.name),
 		suffix = table.concat(suffix, " "),
 		marker = ui.is_activated(entry.key) and icons.active or "",
@@ -343,17 +343,17 @@ local function add_connection_rows(add, entry, icons)
 		expanded = entry.schemas_expanded,
 		icons = icons,
 		type_icon = icons.schema,
-		icon_hl = "SqluaSchema",
+		icon_hl = "LuaDadbodSchema",
 		label = "Schemas",
 		suffix = entry.schemas_loading and "(loading...)" or ("(" .. #schemas .. ")"),
 		key = entry.key,
 		body = function()
 			if entry.schemas_loading then
-				add({ kind = "help", level = 2, label = "loading...", label_hl = "SqluaHelp", key = entry.key })
+				add({ kind = "help", level = 2, label = "loading...", label_hl = "LuaDadbodHelp", key = entry.key })
 				return
 			end
 			if #schemas == 0 then
-				add({ kind = "help", level = 2, label = "(no schemas)", label_hl = "SqluaHelp", key = entry.key })
+				add({ kind = "help", level = 2, label = "(no schemas)", label_hl = "LuaDadbodHelp", key = entry.key })
 				return
 			end
 			for _, schema in ipairs(schemas) do
@@ -363,7 +363,7 @@ local function add_connection_rows(add, entry, icons)
 					level = 2,
 					icon = state.expanded and expanded or collapsed,
 					type_icon = icons.schema,
-					icon_hl = "SqluaSchema",
+					icon_hl = "LuaDadbodSchema",
 					label = schema,
 					key = entry.key,
 					schema = schema,
@@ -395,7 +395,7 @@ function M.render()
 			kind = "help",
 			level = 0,
 			label = "No connections. Press A to add one.",
-			label_hl = "SqluaHelp",
+			label_hl = "LuaDadbodHelp",
 		})
 	end
 
@@ -410,7 +410,7 @@ function M.render()
 		expanded = M.scratchpads_expanded,
 		icons = icons,
 		type_icon = icons.scratchpads,
-		icon_hl = "SqluaScratchpads",
+		icon_hl = "LuaDadbodScratchpads",
 		label = "Scratchpads",
 		suffix = "(" .. #scratchpads .. ")",
 		items = scratchpads,
@@ -421,7 +421,7 @@ function M.render()
 				kind = "scratch",
 				level = 1,
 				type_icon = icons.scratchpad,
-				icon_hl = "SqluaScratchpad",
+				icon_hl = "LuaDadbodScratchpad",
 				label = item.label,
 				suffix = "(" .. item.conn_label .. ")" .. mark,
 				item = item,
@@ -436,7 +436,7 @@ function M.render()
 		expanded = M.history_expanded,
 		icons = icons,
 		type_icon = icons.history,
-		icon_hl = "SqluaHistory",
+		icon_hl = "LuaDadbodHistory",
 		label = "History",
 		suffix = "(" .. #history_entries .. ")",
 		items = history_entries,
@@ -447,7 +447,7 @@ function M.render()
 				kind = "history",
 				level = 1,
 				type_icon = icons.history_entry or "·",
-				icon_hl = "SqluaHistoryEntry",
+				icon_hl = "LuaDadbodHistoryEntry",
 				label = history.preview_text(entry),
 				suffix = "(" .. conn_label .. ", " .. os.date("%H:%M", entry.time or os.time()) .. ")",
 				entry = entry,
@@ -636,7 +636,7 @@ function M.preview_table(entry, table_name, helper, schema)
 		return
 	end
 
-	local result_buf, run_err = require("sqlua.execute").run(sql, {
+	local result_buf, run_err = require("lua-dadbod.execute").run(sql, {
 		conn = entry.url,
 		conn_key = entry.key,
 		name = entry.name,
@@ -944,7 +944,7 @@ function M.refresh()
 end
 
 function M.add_connection()
-	require("sqlua").add_connection()
+	require("lua-dadbod").add_connection()
 end
 
 function M.rename()

@@ -1,15 +1,15 @@
 local h = require("tests.harness")
-local config = require("sqlua.config")
-local db = require("sqlua.db")
-local query = require("sqlua.query")
-local ui = require("sqlua.ui")
-local util = require("sqlua.util")
+local config = require("lua-dadbod.config")
+local db = require("lua-dadbod.db")
+local query = require("lua-dadbod.query")
+local ui = require("lua-dadbod.ui")
+local util = require("lua-dadbod.util")
 
 local function restore_globals(previous, directory)
 	vim.g.db = previous.db
 	vim.g.dbs = previous.dbs
-	vim.env.SQLUA_URL = previous.url
-	vim.env.SQLUA_NAME = previous.name
+	vim.env.LUA_DADBOD_URL = previous.url
+	vim.env.LUA_DADBOD_NAME = previous.name
 	config.setup({
 		save_location = previous.save,
 		tmp_location = previous.tmp,
@@ -24,17 +24,17 @@ h.test("ui discovers all connection sources", function()
 	local previous = {
 		db = vim.g.db,
 		dbs = vim.g.dbs,
-		url = vim.env.SQLUA_URL,
-		name = vim.env.SQLUA_NAME,
+		url = vim.env.LUA_DADBOD_URL,
+		name = vim.env.LUA_DADBOD_NAME,
 		save = config.get().save_location,
 		tmp = config.get().tmp_location,
 	}
 	local directory = vim.fn.tempname()
 	config.setup({
-		save_location = directory .. "/sqlua",
+		save_location = directory .. "/lua-dadbod",
 		tmp_location = directory .. "/queries",
 	})
-	util.write_json(directory .. "/sqlua/connections.json", {
+	util.write_json(directory .. "/lua-dadbod/connections.json", {
 		{ name = "filedb", url = "sqlite::memory:" },
 	})
 
@@ -45,8 +45,8 @@ h.test("ui discovers all connection sources", function()
 			return "sqlite::memory:"
 		end,
 	}
-	vim.env.SQLUA_URL = "sqlite::memory:"
-	vim.env.SQLUA_NAME = "envdb"
+	vim.env.LUA_DADBOD_URL = "sqlite::memory:"
+	vim.env.LUA_DADBOD_NAME = "envdb"
 
 	ui.reset()
 	local list = ui.refresh()
@@ -99,20 +99,20 @@ h.test("ui adds and deletes file connections", function()
 	local previous = {
 		db = vim.g.db,
 		dbs = vim.g.dbs,
-		url = vim.env.SQLUA_URL,
-		name = vim.env.SQLUA_NAME,
+		url = vim.env.LUA_DADBOD_URL,
+		name = vim.env.LUA_DADBOD_NAME,
 		save = config.get().save_location,
 		tmp = config.get().tmp_location,
 	}
 	local directory = vim.fn.tempname()
-	config.setup({ save_location = directory .. "/sqlua" })
+	config.setup({ save_location = directory .. "/lua-dadbod" })
 	ui.reset()
 
 	ui.add_connection({ name = "added", url = "sqlite::memory:" })
 	local entry = ui.get("added_file")
 	h.ok(entry)
 	h.eq(entry.source, "file")
-	h.eq(vim.fn.filereadable(directory .. "/sqlua/connections.json"), 1)
+	h.eq(vim.fn.filereadable(directory .. "/lua-dadbod/connections.json"), 1)
 
 	local ok, err = ui.delete_connection(entry)
 	h.ok(ok, err)
@@ -121,18 +121,18 @@ h.test("ui adds and deletes file connections", function()
 	restore_globals(previous, directory)
 end)
 
-h.test(":SqluaFindBuffer attaches the current buffer", function()
+h.test(":LuaDadbodFindBuffer attaches the current buffer", function()
 	local previous = {
 		db = vim.g.db,
 		dbs = vim.g.dbs,
-		url = vim.env.SQLUA_URL,
-		name = vim.env.SQLUA_NAME,
+		url = vim.env.LUA_DADBOD_URL,
+		name = vim.env.LUA_DADBOD_NAME,
 		save = config.get().save_location,
 		tmp = config.get().tmp_location,
 	}
 	local directory = vim.fn.tempname()
 	config.setup({
-		save_location = directory .. "/sqlua",
+		save_location = directory .. "/lua-dadbod",
 		tmp_location = directory .. "/queries",
 	})
 	vim.g.dbs = { only = "sqlite::memory:" }
@@ -140,9 +140,9 @@ h.test(":SqluaFindBuffer attaches the current buffer", function()
 
 	local bufnr = vim.api.nvim_create_buf(true, false)
 	vim.api.nvim_set_current_buf(bufnr)
-	vim.cmd("SqluaFindBuffer")
+	vim.cmd("LuaDadbodFindBuffer")
 
-	local meta = vim.b[bufnr].sqlua
+	local meta = vim.b[bufnr].lua_dadbod
 	h.matches(meta.conn, "sqlite::memory:")
 	h.eq(meta.conn_name, "only")
 	h.eq(meta.conn_key, "only_g:dbs")
@@ -156,13 +156,13 @@ h.test("connection labels add the dbms only for multiple dbms", function()
 	local previous = {
 		db = vim.g.db,
 		dbs = vim.g.dbs,
-		url = vim.env.SQLUA_URL,
-		name = vim.env.SQLUA_NAME,
+		url = vim.env.LUA_DADBOD_URL,
+		name = vim.env.LUA_DADBOD_NAME,
 		save = config.get().save_location,
 		tmp = config.get().tmp_location,
 	}
 	local directory = vim.fn.tempname()
-	config.setup({ save_location = directory .. "/sqlua" })
+	config.setup({ save_location = directory .. "/lua-dadbod" })
 
 	vim.g.dbs = { test = "sqlite::memory:" }
 	ui.reset()
@@ -188,14 +188,14 @@ h.test("scratchpads include saved files and open buffers", function()
 	local previous = {
 		db = vim.g.db,
 		dbs = vim.g.dbs,
-		url = vim.env.SQLUA_URL,
-		name = vim.env.SQLUA_NAME,
+		url = vim.env.LUA_DADBOD_URL,
+		name = vim.env.LUA_DADBOD_NAME,
 		save = config.get().save_location,
 		tmp = config.get().tmp_location,
 	}
 	local directory = vim.fn.tempname()
 	config.setup({
-		save_location = directory .. "/sqlua",
+		save_location = directory .. "/lua-dadbod",
 		tmp_location = directory .. "/queries",
 	})
 
@@ -232,14 +232,14 @@ h.test("query deletes a saved scratchpad", function()
 	local previous = {
 		db = vim.g.db,
 		dbs = vim.g.dbs,
-		url = vim.env.SQLUA_URL,
-		name = vim.env.SQLUA_NAME,
+		url = vim.env.LUA_DADBOD_URL,
+		name = vim.env.LUA_DADBOD_NAME,
 		save = config.get().save_location,
 		tmp = config.get().tmp_location,
 	}
 	local directory = vim.fn.tempname()
 	config.setup({
-		save_location = directory .. "/sqlua",
+		save_location = directory .. "/lua-dadbod",
 		tmp_location = directory .. "/queries",
 	})
 	vim.g.dbs = { test = "sqlite::memory:" }
@@ -261,14 +261,14 @@ h.test("opening a saved query attaches its connection", function()
 	local previous = {
 		db = vim.g.db,
 		dbs = vim.g.dbs,
-		url = vim.env.SQLUA_URL,
-		name = vim.env.SQLUA_NAME,
+		url = vim.env.LUA_DADBOD_URL,
+		name = vim.env.LUA_DADBOD_NAME,
 		save = config.get().save_location,
 		tmp = config.get().tmp_location,
 	}
 	local directory = vim.fn.tempname()
 	config.setup({
-		save_location = directory .. "/sqlua",
+		save_location = directory .. "/lua-dadbod",
 		tmp_location = directory .. "/queries",
 	})
 	vim.g.dbs = { test = "sqlite::memory:" }
@@ -281,7 +281,7 @@ h.test("opening a saved query attaches its connection", function()
 
 	vim.cmd("edit! " .. vim.fn.fnameescape(path))
 	local bufnr = vim.api.nvim_get_current_buf()
-	local meta = vim.b[bufnr].sqlua
+	local meta = vim.b[bufnr].lua_dadbod
 	h.ok(meta, "saved query was not attached")
 	h.eq(meta.conn, "sqlite::memory:")
 	h.eq(meta.conn_key, "test_g:dbs")
@@ -300,27 +300,27 @@ h.test("n creates a scratchpad for the active connection", function()
 	local previous = {
 		db = vim.g.db,
 		dbs = vim.g.dbs,
-		url = vim.env.SQLUA_URL,
-		name = vim.env.SQLUA_NAME,
+		url = vim.env.LUA_DADBOD_URL,
+		name = vim.env.LUA_DADBOD_NAME,
 		save = config.get().save_location,
 		tmp = config.get().tmp_location,
 	}
 	local directory = vim.fn.tempname()
 	config.setup({
-		save_location = directory .. "/sqlua",
+		save_location = directory .. "/lua-dadbod",
 		tmp_location = directory .. "/queries",
 	})
 	vim.g.dbs = { test = "sqlite::memory:" }
 	ui.reset()
 
-	local drawer = require("sqlua.drawer")
+	local drawer = require("lua-dadbod.drawer")
 	drawer.open()
 	h.is_nil(ui.active())
 	drawer.new_scratchpad()
 	h.eq(ui.active(), "test_g:dbs")
 
 	local query_buf = vim.api.nvim_get_current_buf()
-	local meta = vim.b[query_buf].sqlua
+	local meta = vim.b[query_buf].lua_dadbod
 	h.eq(meta.conn_name, "test")
 	h.eq(meta.dbms, "sqlite")
 	h.eq(meta.source, "scratch")
@@ -337,15 +337,15 @@ h.test("drawer expands a connection and opens a table", function()
 	local previous = {
 		db = vim.g.db,
 		dbs = vim.g.dbs,
-		url = vim.env.SQLUA_URL,
-		name = vim.env.SQLUA_NAME,
+		url = vim.env.LUA_DADBOD_URL,
+		name = vim.env.LUA_DADBOD_NAME,
 		save = config.get().save_location,
 		tmp = config.get().tmp_location,
 	}
 	local directory = vim.fn.tempname()
 	util.ensure_dir(directory)
 	config.setup({
-		save_location = directory .. "/sqlua",
+		save_location = directory .. "/lua-dadbod",
 		tmp_location = directory .. "/queries",
 	})
 
@@ -361,12 +361,12 @@ h.test("drawer expands a connection and opens a table", function()
 	vim.g.dbs = { test = "sqlite:" .. path }
 	ui.reset()
 
-	local drawer = require("sqlua.drawer")
+	local drawer = require("lua-dadbod.drawer")
 	h.eq(drawer.scratchpads_expanded, false)
 	h.eq(drawer.history_expanded, false)
 	drawer.open()
 	local drawer_buf = vim.api.nvim_get_current_buf()
-	h.eq(vim.b[drawer_buf].sqlua_drawer, true)
+	h.eq(vim.b[drawer_buf].lua_dadbod_drawer, true)
 
 	local lines = vim.api.nvim_buf_get_lines(drawer_buf, 0, -1, false)
 	local initial_text = table.concat(lines, "\n")
@@ -374,10 +374,10 @@ h.test("drawer expands a connection and opens a table", function()
 	h.eq(initial_text:find("Add connection", 1, true), nil)
 	h.eq(initial_text:find("No scratchpads", 1, true), nil)
 	h.eq(initial_text:find("No history yet", 1, true), nil)
-	h.eq(vim.fn.hlexists("SqluaDb"), 1)
-	h.eq(vim.fn.hlexists("SqluaTable"), 1)
-	h.eq(vim.fn.hlexists("SqluaScratchpads"), 1)
-	h.eq(vim.fn.hlexists("SqluaHistory"), 1)
+	h.eq(vim.fn.hlexists("LuaDadbodDb"), 1)
+	h.eq(vim.fn.hlexists("LuaDadbodTable"), 1)
+	h.eq(vim.fn.hlexists("LuaDadbodScratchpads"), 1)
+	h.eq(vim.fn.hlexists("LuaDadbodHistory"), 1)
 
 	h.eq(ui.is_activated("test_g:dbs"), false)
 	vim.api.nvim_win_set_cursor(0, { 1, 0 })
@@ -431,11 +431,11 @@ h.test("drawer expands a connection and opens a table", function()
 	h.eq(vim.api.nvim_get_current_buf(), drawer_buf)
 
 	h.ok(vim.wait(5000, function()
-		return vim.b[drawer_buf].sqlua_result_buf ~= nil
+		return vim.b[drawer_buf].lua_dadbod_result_buf ~= nil
 	end), "preview did not start")
-	local result_buf = vim.b[drawer_buf].sqlua_result_buf
+	local result_buf = vim.b[drawer_buf].lua_dadbod_result_buf
 	h.ok(vim.wait(5000, function()
-		local result_meta = vim.b[result_buf].sqlua_result
+		local result_meta = vim.b[result_buf].lua_dadbod_result
 		return result_meta and result_meta.status ~= "running"
 	end), "preview did not finish")
 	local result_text = table.concat(vim.api.nvim_buf_get_lines(result_buf, 0, -1, false), "\n")
@@ -449,7 +449,7 @@ h.test("drawer expands a connection and opens a table", function()
 	h.eq(vim.api.nvim_get_current_buf(), drawer_buf)
 
 	h.ok(vim.wait(5000, function()
-		local result_meta = vim.b[result_buf].sqlua_result
+		local result_meta = vim.b[result_buf].lua_dadbod_result
 		return result_meta and result_meta.status ~= "running"
 	end), "columns preview did not finish")
 	result_text = table.concat(vim.api.nvim_buf_get_lines(result_buf, 0, -1, false), "\n")
@@ -459,7 +459,7 @@ h.test("drawer expands a connection and opens a table", function()
 	vim.api.nvim_win_set_cursor(drawer_win, { table_line, 0 })
 	drawer.edit()
 	local query_buf = vim.api.nvim_get_current_buf()
-	local meta = vim.b[query_buf].sqlua
+	local meta = vim.b[query_buf].lua_dadbod
 	h.eq(meta.table, "users")
 	h.matches(table.concat(vim.api.nvim_buf_get_lines(query_buf, 0, -1, false), "\n"), "limit 50")
 	vim.api.nvim_buf_delete(query_buf, { force = true })
@@ -472,7 +472,7 @@ h.test("drawer expands a connection and opens a table", function()
 end)
 
 h.test("drawer loads schemas and schema tables", function()
-	require("sqlua.adapters").register({
+	require("lua-dadbod.adapters").register({
 		name = "uitestmeta",
 		binary = "sqlite3",
 		quote = { '"', '"' },
@@ -494,20 +494,20 @@ h.test("drawer loads schemas and schema tables", function()
 	local previous = {
 		db = vim.g.db,
 		dbs = vim.g.dbs,
-		url = vim.env.SQLUA_URL,
-		name = vim.env.SQLUA_NAME,
+		url = vim.env.LUA_DADBOD_URL,
+		name = vim.env.LUA_DADBOD_NAME,
 		save = config.get().save_location,
 		tmp = config.get().tmp_location,
 	}
 	local directory = vim.fn.tempname()
 	config.setup({
-		save_location = directory .. "/sqlua",
+		save_location = directory .. "/lua-dadbod",
 		tmp_location = directory .. "/queries",
 	})
 	vim.g.dbs = { meta = "uitestmeta:" }
 	ui.reset()
 
-	local drawer = require("sqlua.drawer")
+	local drawer = require("lua-dadbod.drawer")
 	drawer.open()
 	local conn_line
 	for index, row in ipairs(drawer.rows) do
@@ -571,14 +571,14 @@ h.test("failed connections collapse and stay inactive", function()
 	local previous = {
 		db = vim.g.db,
 		dbs = vim.g.dbs,
-		url = vim.env.SQLUA_URL,
-		name = vim.env.SQLUA_NAME,
+		url = vim.env.LUA_DADBOD_URL,
+		name = vim.env.LUA_DADBOD_NAME,
 		save = config.get().save_location,
 		tmp = config.get().tmp_location,
 	}
 	local directory = vim.fn.tempname()
 	config.setup({
-		save_location = directory .. "/sqlua",
+		save_location = directory .. "/lua-dadbod",
 		tmp_location = directory .. "/queries",
 	})
 	vim.g.dbs = { broken = "sqlite:" .. directory .. "/missing/test.db" }
@@ -590,7 +590,7 @@ h.test("failed connections collapse and stay inactive", function()
 		notices[#notices + 1] = { message, level }
 	end
 
-	local drawer = require("sqlua.drawer")
+	local drawer = require("lua-dadbod.drawer")
 	drawer.open()
 	local conn_line
 	for index, row in ipairs(drawer.rows) do
@@ -632,26 +632,26 @@ h.test("failed connections collapse and stay inactive", function()
 end)
 
 h.test("global mappings follow setup", function()
-	local sqlua = require("sqlua")
-	sqlua.setup({ mappings = { global = true } })
+	local lua_dadbod = require("lua-dadbod")
+	lua_dadbod.setup({ mappings = { global = true } })
 	h.eq(vim.fn.maparg("<leader>Do", "n") ~= "", true)
 
-	sqlua.setup({ mappings = { global = false } })
+	lua_dadbod.setup({ mappings = { global = false } })
 	h.eq(vim.fn.maparg("<leader>Do", "n"), "")
 
-	sqlua.setup()
+	lua_dadbod.setup()
 end)
 
-h.test("sqlua commands exist", function()
+h.test("lua-dadbod commands exist", function()
 	for _, name in ipairs({
-		"Sqlua",
-		"SqluaToggle",
-		"SqluaClose",
-		"SqluaAddConnection",
-		"SqluaFindBuffer",
-		"SqluaRenameBuffer",
-		"SqluaClearCache",
-		"SqluaRefresh",
+		"LuaDadbod",
+		"LuaDadbodToggle",
+		"LuaDadbodClose",
+		"LuaDadbodAddConnection",
+		"LuaDadbodFindBuffer",
+		"LuaDadbodRenameBuffer",
+		"LuaDadbodClearCache",
+		"LuaDadbodRefresh",
 	}) do
 		h.eq(vim.fn.exists(":" .. name), 2, name .. " is not registered")
 	end

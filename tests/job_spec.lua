@@ -1,5 +1,5 @@
 local h = require("tests.harness")
-local job = require("sqlua.job")
+local job = require("lua-dadbod.job")
 
 local function wait_for(predicate)
 	return vim.wait(5000, predicate, 10)

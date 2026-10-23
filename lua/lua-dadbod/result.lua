@@ -1,14 +1,14 @@
-local config = require("sqlua.config")
-local job = require("sqlua.job")
-local result_table = require("sqlua.result_table")
-local util = require("sqlua.util")
+local config = require("lua-dadbod.config")
+local job = require("lua-dadbod.job")
+local result_table = require("lua-dadbod.result_table")
+local util = require("lua-dadbod.util")
 
 local M = {}
 local next_id = 1
 local jobs = {}
-local highlight_ns = vim.api.nvim_create_namespace("sqlua_result")
+local highlight_ns = vim.api.nvim_create_namespace("lua_dadbod_result")
 
-vim.api.nvim_set_hl(0, "SqluaResultHeader", { link = "Title", default = true })
+vim.api.nvim_set_hl(0, "LuaDadbodResultHeader", { link = "Title", default = true })
 
 local function set_lines(bufnr, lines)
 	if not vim.api.nvim_buf_is_valid(bufnr) then
@@ -21,11 +21,11 @@ local function set_lines(bufnr, lines)
 end
 
 local function get_meta(bufnr)
-	return vim.b[bufnr].sqlua_result
+	return vim.b[bufnr].lua_dadbod_result
 end
 
 local function set_meta(bufnr, meta)
-	vim.b[bufnr].sqlua_result = meta
+	vim.b[bufnr].lua_dadbod_result = meta
 end
 
 local function find_window(bufnr)
@@ -55,13 +55,13 @@ local function header(bufnr)
 	local meta = get_meta(bufnr) or {}
 	local name = meta.name or "result"
 	if meta.status == "running" then
-		return string.format("-- sqlua: %s | running...", name)
+		return string.format("-- lua-dadbod: %s | running...", name)
 	end
 	local elapsed = meta.elapsed and string.format("%.3fs", meta.elapsed) or "-"
 	local code = meta.code ~= nil and tostring(meta.code) or "-"
 	if meta.rows ~= nil then
 		return string.format(
-			"-- sqlua: %s | %s | %d rows | %s | exit %s",
+			"-- lua-dadbod: %s | %s | %d rows | %s | exit %s",
 			name,
 			meta.status or "unknown",
 			meta.rows,
@@ -69,7 +69,7 @@ local function header(bufnr)
 			code
 		)
 	end
-	return string.format("-- sqlua: %s | %s | %s | exit %s", name, meta.status or "unknown", elapsed, code)
+	return string.format("-- lua-dadbod: %s | %s | %s | exit %s", name, meta.status or "unknown", elapsed, code)
 end
 
 local function result_lines(bufnr, result, parsed)
@@ -130,7 +130,7 @@ function M.open(opts)
 	local id = next_id
 	local bufnr
 	while true do
-		local name = "sqlua://result/" .. id
+		local name = "lua-dadbod://result/" .. id
 		if vim.fn.bufnr(name) == -1 then
 			bufnr = vim.api.nvim_create_buf(false, true)
 			pcall(vim.api.nvim_buf_set_name, bufnr, name)
@@ -143,7 +143,7 @@ function M.open(opts)
 	vim.bo[bufnr].buftype = "nofile"
 	vim.bo[bufnr].bufhidden = "wipe"
 	vim.bo[bufnr].swapfile = false
-	vim.bo[bufnr].filetype = "sqlua_result"
+	vim.bo[bufnr].filetype = "lua_dadbod_result"
 
 	jobs[bufnr] = nil
 	set_meta(bufnr, {
@@ -227,7 +227,7 @@ function M.update(bufnr, result)
 	set_meta(bufnr, meta)
 	set_lines(bufnr, result_lines(bufnr, result, parsed))
 	if parsed then
-		vim.api.nvim_buf_add_highlight(bufnr, highlight_ns, "SqluaResultHeader", 1, 0, -1)
+		vim.api.nvim_buf_add_highlight(bufnr, highlight_ns, "LuaDadbodResultHeader", 1, 0, -1)
 	end
 end
 
@@ -274,7 +274,7 @@ function M.rerun(bufnr)
 		util.warn("nothing to rerun")
 		return
 	end
-	local _, err = require("sqlua.execute").run(meta.sql, {
+	local _, err = require("lua-dadbod.execute").run(meta.sql, {
 		bufnr = meta.source_buf,
 		conn = meta.conn,
 		conn_key = meta.conn_key,
@@ -292,15 +292,15 @@ function M.keymaps(bufnr)
 
 	vim.keymap.set("n", "q", function()
 		M.close(bufnr)
-	end, { buffer = bufnr, silent = true, nowait = true, desc = "Close sqlua result" })
+	end, { buffer = bufnr, silent = true, nowait = true, desc = "Close lua-dadbod result" })
 
 	vim.keymap.set("n", "R", function()
 		M.rerun(bufnr)
-	end, { buffer = bufnr, silent = true, nowait = true, desc = "Rerun sqlua query" })
+	end, { buffer = bufnr, silent = true, nowait = true, desc = "Rerun lua-dadbod query" })
 
 	vim.keymap.set("n", "<C-c>", function()
 		M.cancel(bufnr)
-	end, { buffer = bufnr, silent = true, nowait = true, desc = "Cancel sqlua query" })
+	end, { buffer = bufnr, silent = true, nowait = true, desc = "Cancel lua-dadbod query" })
 end
 
 function M.header(bufnr)

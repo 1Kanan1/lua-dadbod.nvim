@@ -1,5 +1,5 @@
-local url = require("sqlua.url")
-local sql = require("sqlua.sql")
+local url = require("lua-dadbod.url")
+local sql = require("lua-dadbod.sql")
 
 local M = {
 	name = "sqlite",

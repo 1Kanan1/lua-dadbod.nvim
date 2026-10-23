@@ -1,5 +1,5 @@
 local h = require("tests.harness")
-local result_table = require("sqlua.result_table")
+local result_table = require("lua-dadbod.result_table")
 
 h.test("parse CSV with quoting and newlines", function()
 	local rows = result_table.parse('a,b,c\n"x,y","line1\nline2","he said ""hi"""\n', "csv")

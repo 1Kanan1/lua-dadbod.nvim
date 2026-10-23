@@ -14,10 +14,10 @@ end
 function M.run(argv, opts, callback)
 	opts = opts or {}
 	if type(argv) ~= "table" or #argv == 0 then
-		error("sqlua.job: argv must be a non-empty table")
+		error("lua-dadbod.job: argv must be a non-empty table")
 	end
 	if type(callback) ~= "function" then
-		error("sqlua.job: callback must be a function")
+		error("lua-dadbod.job: callback must be a function")
 	end
 
 	local start = vim.uv.hrtime()

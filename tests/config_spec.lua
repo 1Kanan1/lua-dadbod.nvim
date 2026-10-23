@@ -1,5 +1,5 @@
 local h = require("tests.harness")
-local config = require("sqlua.config")
+local config = require("lua-dadbod.config")
 
 h.test("config defaults", function()
 	config.reset()

@@ -16,7 +16,7 @@ local function remove_global_mappings()
 end
 
 function M.setup_mappings()
-	if not require("sqlua.config").mappings_enabled("global") then
+	if not require("lua-dadbod.config").mappings_enabled("global") then
 		remove_global_mappings()
 		return
 	end
@@ -26,53 +26,53 @@ function M.setup_mappings()
 	end
 
 	map("<leader>Do", function()
-		require("sqlua.drawer").open()
-	end, "sqlua: open drawer")
+		require("lua-dadbod.drawer").open()
+	end, "lua-dadbod: open drawer")
 	map("<leader>Dt", function()
-		require("sqlua.drawer").toggle()
-	end, "sqlua: toggle drawer")
+		require("lua-dadbod.drawer").toggle()
+	end, "lua-dadbod: toggle drawer")
 	map("<leader>Dc", function()
-		require("sqlua.drawer").close()
-	end, "sqlua: close drawer")
+		require("lua-dadbod.drawer").close()
+	end, "lua-dadbod: close drawer")
 	map("<leader>Da", function()
 		M.add_connection()
-	end, "sqlua: add connection")
+	end, "lua-dadbod: add connection")
 	map("<leader>Df", function()
 		M.attach()
-	end, "sqlua: attach buffer")
+	end, "lua-dadbod: attach buffer")
 	map("<leader>Dx", function()
 		M.clear_cache()
-	end, "sqlua: clear cache")
+	end, "lua-dadbod: clear cache")
 
 	local ok, which_key = pcall(require, "which-key")
 	if ok and type(which_key.add) == "function" then
 		pcall(which_key.add, {
-			{ "<leader>D", group = "sqlua" },
+			{ "<leader>D", group = "lua-dadbod" },
 		})
 	end
 end
 
 function M.setup(opts)
-	require("sqlua.config").setup(opts)
+	require("lua-dadbod.config").setup(opts)
 	M.setup_mappings()
 	return M
 end
 
 function M.open()
-	return require("sqlua.drawer").open()
+	return require("lua-dadbod.drawer").open()
 end
 
 function M.toggle()
-	return require("sqlua.drawer").toggle()
+	return require("lua-dadbod.drawer").toggle()
 end
 
 function M.close()
-	return require("sqlua.drawer").close()
+	return require("lua-dadbod.drawer").close()
 end
 
 function M.add_connection(opts, callback)
-	return require("sqlua.ui").add_connection(opts, function()
-		local drawer = require("sqlua.drawer")
+	return require("lua-dadbod.ui").add_connection(opts, function()
+		local drawer = require("lua-dadbod.drawer")
 		if drawer.is_open() then
 			drawer.render()
 		end
@@ -84,9 +84,9 @@ end
 
 function M.attach(bufnr)
 	bufnr = bufnr or vim.api.nvim_get_current_buf()
-	local ui = require("sqlua.ui")
-	local query = require("sqlua.query")
-	local util = require("sqlua.util")
+	local ui = require("lua-dadbod.ui")
+	local query = require("lua-dadbod.query")
+	local util = require("lua-dadbod.util")
 	local connections = ui.connections()
 
 	if #connections == 0 then
@@ -120,21 +120,21 @@ function M.attach(bufnr)
 end
 
 function M.connections()
-	return require("sqlua.ui").connections()
+	return require("lua-dadbod.ui").connections()
 end
 
 function M.get_connection(key)
-	return require("sqlua.ui").get(key)
+	return require("lua-dadbod.ui").get(key)
 end
 
 function M.run(sql, opts, callback)
-	return require("sqlua.execute").run(sql, opts, callback)
+	return require("lua-dadbod.execute").run(sql, opts, callback)
 end
 
 function M.statusline(opts)
 	opts = opts or {}
 	local bufnr = vim.api.nvim_get_current_buf()
-	local meta = vim.b[bufnr].sqlua
+	local meta = vim.b[bufnr].lua_dadbod
 	if type(meta) ~= "table" then
 		return ""
 	end
@@ -162,25 +162,25 @@ function M.statusline(opts)
 end
 
 function M.clear_cache()
-	require("sqlua.ui").clear_meta()
-	local drawer = require("sqlua.drawer")
+	require("lua-dadbod.ui").clear_meta()
+	local drawer = require("lua-dadbod.drawer")
 	if drawer.is_open() then
 		drawer.render()
 	end
 end
 
 function M.refresh()
-	local ui = require("sqlua.ui")
+	local ui = require("lua-dadbod.ui")
 	ui.clear_meta()
 	ui.refresh()
-	local drawer = require("sqlua.drawer")
+	local drawer = require("lua-dadbod.drawer")
 	if drawer.is_open() then
 		drawer.render()
 	end
 end
 
-M.url = require("sqlua.url")
-M.db = require("sqlua.db")
-M.adapters = require("sqlua.adapters")
+M.url = require("lua-dadbod.url")
+M.db = require("lua-dadbod.db")
+M.adapters = require("lua-dadbod.adapters")
 
 return M

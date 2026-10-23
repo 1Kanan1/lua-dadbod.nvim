@@ -1,5 +1,5 @@
 local h = require("tests.harness")
-local query = require("sqlua.query")
+local query = require("lua-dadbod.query")
 
 h.test("find bind parameters", function()
 	h.eq(query.find_params("select * from t where id = :id and name = ':ignored'"), { ":id" })
@@ -46,13 +46,13 @@ h.test("resolve bind values without prompting", function()
 end)
 
 h.test("save a query to disk", function()
-	local config = require("sqlua.config")
+	local config = require("lua-dadbod.config")
 	local previous = config.get().save_location
-	local save_location = vim.fn.tempname() .. "/sqlua"
+	local save_location = vim.fn.tempname() .. "/lua-dadbod"
 	config.setup({ save_location = save_location })
 
 	local bufnr = h.ok(query.open("sqlite::memory:", { auto_execute = false }))
-	local meta = vim.b[bufnr].sqlua
+	local meta = vim.b[bufnr].lua_dadbod
 	h.eq(meta.conn, "sqlite::memory:")
 	h.eq(meta.conn_name, "memory")
 	h.eq(meta.conn_key, "memory")

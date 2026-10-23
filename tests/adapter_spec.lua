@@ -1,6 +1,6 @@
 local h = require("tests.harness")
-local adapters = require("sqlua.adapters")
-local db = require("sqlua.db")
+local adapters = require("lua-dadbod.adapters")
+local db = require("lua-dadbod.db")
 
 h.test("sqlite3 is an alias for sqlite", function()
 	local adapter = h.ok(adapters.get("sqlite3"))

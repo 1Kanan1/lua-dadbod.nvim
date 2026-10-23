@@ -1,5 +1,5 @@
 local h = require("tests.harness")
-local url = require("sqlua.url")
+local url = require("lua-dadbod.url")
 
 h.test("parse and format a network URL", function()
 	local parsed = h.ok(url.parse("postgresql://user:p%40ss@localhost:5432/my%20db?sslmode=require&flag#frag"))
@@ -99,12 +99,12 @@ h.test("read a file path from a URL", function()
 end)
 
 h.test("resolve environment variables", function()
-	local previous = vim.env.SQLUA_TEST_URL
-	vim.env.SQLUA_TEST_URL = "sqlite:/tmp/x.db"
-	h.eq(url.resolve("$SQLUA_TEST_URL"), "sqlite:/tmp/x.db")
-	h.eq(url.resolve("${SQLUA_TEST_URL}"), "sqlite:/tmp/x.db")
-	h.eq(url.resolve("$SQLUA_MISSING_FOR_TEST"), "")
-	vim.env.SQLUA_TEST_URL = previous
+	local previous = vim.env.LUA_DADBOD_TEST_URL
+	vim.env.LUA_DADBOD_TEST_URL = "sqlite:/tmp/x.db"
+	h.eq(url.resolve("$LUA_DADBOD_TEST_URL"), "sqlite:/tmp/x.db")
+	h.eq(url.resolve("${LUA_DADBOD_TEST_URL}"), "sqlite:/tmp/x.db")
+	h.eq(url.resolve("$LUA_DADBOD_MISSING_FOR_TEST"), "")
+	vim.env.LUA_DADBOD_TEST_URL = previous
 end)
 
 h.test("reject malformed URLs", function()

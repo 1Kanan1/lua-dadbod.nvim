@@ -61,7 +61,7 @@ function M.write_json(path, data)
 end
 
 function M.notify(message, level)
-	vim.notify("[sqlua] " .. tostring(message), level or vim.log.levels.INFO)
+	vim.notify("[lua-dadbod] " .. tostring(message), level or vim.log.levels.INFO)
 end
 
 function M.warn(message)
@@ -97,10 +97,10 @@ function M.open_split(opts)
 	opts = opts or {}
 	local current = vim.api.nvim_get_current_win()
 	local current_buf = vim.api.nvim_win_get_buf(current)
-	if vim.api.nvim_win_get_config(current).relative ~= "" or vim.b[current_buf].sqlua_drawer then
+	if vim.api.nvim_win_get_config(current).relative ~= "" or vim.b[current_buf].lua_dadbod_drawer then
 		for _, win in ipairs(vim.api.nvim_list_wins()) do
 			local buf = vim.api.nvim_win_get_buf(win)
-			if vim.api.nvim_win_get_config(win).relative == "" and not vim.b[buf].sqlua_drawer then
+			if vim.api.nvim_win_get_config(win).relative == "" and not vim.b[buf].lua_dadbod_drawer then
 				vim.api.nvim_set_current_win(win)
 				break
 			end

@@ -1,4 +1,4 @@
-# sqlua
+# lua-dadbod
 
 Early test build of a Neovim SQL client. It replaces `vim-dadbod`,
 `vim-dadbod-ui`, and `vim-dadbod-completion`.
@@ -17,22 +17,22 @@ Not stable yet. SQLite, PostgreSQL, and MySQL/MariaDB are supported.
 Clone the repo:
 
 ```sh
-git clone https://github.com/1Kanan1/lua-dadbod.nvim.git ~/dev/sqlua
+git clone https://github.com/1Kanan1/lua-dadbod.nvim.git ~/dev/lua-dadbod
 ```
 
 Add this to your lazy.nvim plugins. Change `dir` if you cloned it elsewhere:
 
 ```lua
 {
-  dir = "~/dev/sqlua",
-  name = "sqlua",
+  dir = "~/dev/lua-dadbod",
+  name = "lua-dadbod",
   config = function()
-    require("sqlua").setup()
+    require("lua-dadbod").setup()
   end,
 }
 ```
 
-The `name = "sqlua"` field keeps lazy.nvim from using the repo folder name. The
+The `name = "lua-dadbod"` field keeps lazy.nvim from using the repo folder name. The
 plugin is not published yet, so `dir` is expected.
 
 Restart Neovim after adding it.
@@ -42,7 +42,7 @@ Restart Neovim after adding it.
 Open the drawer:
 
 ```vim
-:Sqlua
+:LuaDadbod
 ```
 
 or press `<leader>Do`. Press `A` to add a connection. Connection URLs look like:
@@ -64,7 +64,7 @@ table columns.
 ## Conflict with vim-dadbod
 
 Both plugins define `:DB`. Disable `vim-dadbod`, `vim-dadbod-ui`, and
-`vim-dadbod-completion` while testing sqlua.
+`vim-dadbod-completion` while testing lua-dadbod.
 
 ## Tests
 

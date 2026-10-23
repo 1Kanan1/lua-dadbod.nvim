@@ -1,4 +1,4 @@
-local sql = require("sqlua.sql")
+local sql = require("lua-dadbod.sql")
 
 local M = {
 	name = "mysql",

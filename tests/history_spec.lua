@@ -1,5 +1,5 @@
 local h = require("tests.harness")
-local history = require("sqlua.history")
+local history = require("lua-dadbod.history")
 
 h.test("history deduplicates and caps entries", function()
 	history.clear()
@@ -77,7 +77,7 @@ h.test("history reruns without a scratchpad", function()
 	local result_buf, err = history.rerun(history.list()[1])
 	h.ok(result_buf, err)
 	h.ok(vim.wait(5000, function()
-		local meta = vim.b[result_buf].sqlua_result
+		local meta = vim.b[result_buf].lua_dadbod_result
 		return meta and meta.status ~= "running"
 	end), "history rerun did not finish")
 	h.eq(history.preview.win, nil)

@@ -1,7 +1,7 @@
-local config = require("sqlua.config")
-local db = require("sqlua.db")
-local url = require("sqlua.url")
-local util = require("sqlua.util")
+local config = require("lua-dadbod.config")
+local db = require("lua-dadbod.db")
+local url = require("lua-dadbod.url")
+local util = require("lua-dadbod.util")
 
 local M = {}
 
@@ -107,9 +107,9 @@ local function add_from_gdbs(list, seen, value, source)
 end
 
 local function add_sources(list, seen)
-	local env_url = vim.env.SQLUA_URL
+	local env_url = vim.env.LUA_DADBOD_URL
 	if type(env_url) == "string" and env_url ~= "" then
-		add_entry(list, seen, vim.env.SQLUA_NAME or "", env_url, "env")
+		add_entry(list, seen, vim.env.LUA_DADBOD_NAME or "", env_url, "env")
 	end
 
 	local global_db = vim.g.db
@@ -335,7 +335,7 @@ function M.scratchpads()
 
 	for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
 		if vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_get_option_value("buflisted", { buf = bufnr }) then
-			local meta = vim.b[bufnr].sqlua
+			local meta = vim.b[bufnr].lua_dadbod
 			if type(meta) == "table" then
 				local path = meta.path
 				if not path or path == "" then

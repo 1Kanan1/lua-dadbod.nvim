@@ -1,4 +1,4 @@
-local util = require("sqlua.util")
+local util = require("lua-dadbod.util")
 
 local M = {
 	entries = {},
@@ -39,7 +39,7 @@ function M.add(entry)
 		table.remove(M.entries)
 	end
 
-	local drawer = package.loaded["sqlua.drawer"]
+	local drawer = package.loaded["lua-dadbod.drawer"]
 	if drawer and drawer.is_open() then
 		pcall(drawer.render)
 	end
@@ -76,7 +76,7 @@ function M.preview_text(entry)
 end
 
 local function preview_lines(entry)
-	local ui = require("sqlua.ui")
+	local ui = require("lua-dadbod.ui")
 	local label = ui.connection_label(entry.dbms, entry.name)
 	local header = string.format(
 		"-- %s | %s | %s | %.3fs",
@@ -113,7 +113,7 @@ local function geometry()
 		col = col,
 		style = "minimal",
 		border = "rounded",
-		title = " sqlua history ",
+		title = " lua-dadbod history ",
 		title_pos = "center",
 	}
 end
@@ -126,9 +126,9 @@ end
 
 local function create_preview_buffer()
 	local bufnr = vim.api.nvim_create_buf(false, true)
-	local name = "sqlua://history"
+	local name = "lua-dadbod://history"
 	if vim.fn.bufnr(name) ~= -1 then
-		name = "sqlua://history/" .. tostring(vim.uv.hrtime())
+		name = "lua-dadbod://history/" .. tostring(vim.uv.hrtime())
 	end
 	pcall(vim.api.nvim_buf_set_name, bufnr, name)
 
@@ -140,13 +140,13 @@ local function create_preview_buffer()
 
 	vim.keymap.set("n", "q", function()
 		M.close_preview()
-	end, { buffer = bufnr, silent = true, nowait = true, desc = "Close sqlua history preview" })
+	end, { buffer = bufnr, silent = true, nowait = true, desc = "Close lua-dadbod history preview" })
 	vim.keymap.set("n", "<Esc>", function()
 		M.close_preview()
-	end, { buffer = bufnr, silent = true, nowait = true, desc = "Close sqlua history preview" })
+	end, { buffer = bufnr, silent = true, nowait = true, desc = "Close lua-dadbod history preview" })
 	vim.keymap.set("n", "R", function()
 		M.rerun(M.preview.entry)
-	end, { buffer = bufnr, silent = true, nowait = true, desc = "Rerun sqlua history query" })
+	end, { buffer = bufnr, silent = true, nowait = true, desc = "Rerun lua-dadbod history query" })
 
 	return bufnr
 end
@@ -156,7 +156,7 @@ function M.preview_entry(entry)
 		return
 	end
 
-	local ui = require("sqlua.ui")
+	local ui = require("lua-dadbod.ui")
 	local lines = preview_lines(entry)
 
 	local bufnr = M.preview.buf
@@ -186,7 +186,7 @@ function M.preview_entry(entry)
 	end
 
 	if not M.preview.augroup then
-		M.preview.augroup = vim.api.nvim_create_augroup("sqlua_history_preview", { clear = true })
+		M.preview.augroup = vim.api.nvim_create_augroup("lua_dadbod_history_preview", { clear = true })
 		vim.api.nvim_create_autocmd("VimResized", {
 			group = M.preview.augroup,
 			callback = resize_preview,
@@ -216,7 +216,7 @@ function M.rerun(entry)
 	if not entry then
 		return
 	end
-	local result_buf, err = require("sqlua.execute").run(entry.sql, {
+	local result_buf, err = require("lua-dadbod.execute").run(entry.sql, {
 		conn = entry.conn,
 		name = entry.name,
 		conn_key = entry.key,

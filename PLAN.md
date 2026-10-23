@@ -1,6 +1,6 @@
-# sqlua: implementation plan
+# lua-dadbod: implementation plan
 
-`sqlua` is one Neovim plugin that replaces `vim-dadbod`, `vim-dadbod-ui`, and
+`lua-dadbod` is one Neovim plugin that replaces `vim-dadbod`, `vim-dadbod-ui`, and
 `vim-dadbod-completion`. It keeps the loop those plugins exist for:
 
 ```
@@ -18,7 +18,7 @@ That is about a third of the Vim script being replaced.
 
 - Adapters: SQLite, PostgreSQL, MySQL, MariaDB. MariaDB uses the MySQL
   adapter with the `mariadb` binary.
-- Connections from `SQLUA_URL` / `SQLUA_NAME`, `g:db`, `g:dbs`, and
+- Connections from `LUA_DADBOD_URL` / `LUA_DADBOD_NAME`, `g:db`, `g:dbs`, and
   `connections.json`.
 - A drawer with connection trees, schemas/tables, global Scratchpads, and
   global session History.
@@ -54,40 +54,40 @@ These are useful but not needed for the first working version:
 |---|---|
 | Runtime | Neovim 0.10+ only, `vim.system()` for processes |
 | Command | Keep `:DB` for query and console use |
-| UI commands | `:Sqlua`, `:SqluaToggle`, `:SqluaClose`, `:SqluaAddConnection`, `:SqluaFindBuffer`, `:SqluaRenameBuffer`, `:SqluaClearCache`, `:SqluaRefresh` |
-| Filetypes | `sqlua` for the drawer, `sqlua_result` for results, normal `sql` for query buffers |
-| Config | `require("sqlua").setup(opts)` only, no `g:db_ui_*` |
-| Connections | `SQLUA_*`, `g:db`, `g:dbs`, `connections.json` |
+| UI commands | `:LuaDadbod`, `:LuaDadbodToggle`, `:LuaDadbodClose`, `:LuaDadbodAddConnection`, `:LuaDadbodFindBuffer`, `:LuaDadbodRenameBuffer`, `:LuaDadbodClearCache`, `:LuaDadbodRefresh` |
+| Filetypes | `lua_dadbod` for the drawer, `lua_dadbod_result` for results, normal `sql` for query buffers |
+| Config | `require("lua-dadbod").setup(opts)` only, no `g:db_ui_*` |
+| Connections | `LUA_DADBOD_*`, `g:db`, `g:dbs`, `connections.json` |
 | Adapters | SQLite, PostgreSQL, MySQL/MariaDB; one file per adapter, one registry |
 | Execution | SQL goes to the CLI on stdin, output goes into a scratch buffer |
 | Results | CSV/TSV from the CLI, rendered as an aligned table |
-| Query files | Real temp files so `:w` works, metadata in `b:sqlua` |
+| Query files | Real temp files so `:w` works, metadata in `b:lua_dadbod` |
 | Completion | Omni plus Blink, cached per connection, scoped columns only |
 | Tests | Plain Lua asserts, run through `nvim --headless` |
 
 ## 3. Layout
 
 ```
-plugin/sqlua.lua                    command registration, load guard
-lua/sqlua/init.lua                  public API
-lua/sqlua/config.lua                defaults and merge
-lua/sqlua/util.lua                  paths, slugs, files, prompts, notify
-lua/sqlua/url.lua                   parse, format, resolve, canonicalize
-lua/sqlua/sql.lua                   SQL literal and identifier quoting
-lua/sqlua/job.lua                   vim.system wrapper, cancel, timeout
-lua/sqlua/db.lua                    connection resolution, adapters, metadata
-lua/sqlua/execute.lua               :DB, running SQL, events
-lua/sqlua/result.lua                result scratch buffers
-lua/sqlua/history.lua               session history and history preview
-lua/sqlua/query.lua                 query files, bind params, save/rename
-lua/sqlua/ui.lua                    connection discovery, state, JSON
-lua/sqlua/drawer.lua                drawer rendering and actions
-lua/sqlua/completion.lua            cache, prefix logic, omni
-lua/sqlua/completion_blink.lua      Blink source
-lua/sqlua/adapters/init.lua         registry and aliases
-lua/sqlua/adapters/sqlite.lua
-lua/sqlua/adapters/postgresql.lua
-lua/sqlua/adapters/mysql.lua
+plugin/lua-dadbod.lua                    command registration, load guard
+lua/lua-dadbod/init.lua                  public API
+lua/lua-dadbod/config.lua                defaults and merge
+lua/lua-dadbod/util.lua                  paths, slugs, files, prompts, notify
+lua/lua-dadbod/url.lua                   parse, format, resolve, canonicalize
+lua/lua-dadbod/sql.lua                   SQL literal and identifier quoting
+lua/lua-dadbod/job.lua                   vim.system wrapper, cancel, timeout
+lua/lua-dadbod/db.lua                    connection resolution, adapters, metadata
+lua/lua-dadbod/execute.lua               :DB, running SQL, events
+lua/lua-dadbod/result.lua                result scratch buffers
+lua/lua-dadbod/history.lua               session history and history preview
+lua/lua-dadbod/query.lua                 query files, bind params, save/rename
+lua/lua-dadbod/ui.lua                    connection discovery, state, JSON
+lua/lua-dadbod/drawer.lua                drawer rendering and actions
+lua/lua-dadbod/completion.lua            cache, prefix logic, omni
+lua/lua-dadbod/completion_blink.lua      Blink source
+lua/lua-dadbod/adapters/init.lua         registry and aliases
+lua/lua-dadbod/adapters/sqlite.lua
+lua/lua-dadbod/adapters/postgresql.lua
+lua/lua-dadbod/adapters/mysql.lua
 tests/run.lua
 tests/url_spec.lua
 tests/adapter_spec.lua
@@ -98,7 +98,7 @@ tests/history_spec.lua
 tests/ui_spec.lua
 tests/completion_spec.lua
 tests/sqlite_spec.lua
-doc/sqlua.txt
+doc/lua-dadbod.txt
 README.md
 ```
 
@@ -138,7 +138,7 @@ scheme:opaque
 
 Sources, in order:
 
-1. `SQLUA_URL` / `SQLUA_NAME`.
+1. `LUA_DADBOD_URL` / `LUA_DADBOD_NAME`.
 2. `g:db`.
 3. `g:dbs` as a map or ordered list. String or function values, called with
    `pcall`.
@@ -153,7 +153,7 @@ warning and is ignored.
 
 For a buffer, connection resolution is:
 
-1. `b:sqlua.conn_key`, then `b:sqlua.url`.
+1. `b:lua_dadbod.conn_key`, then `b:lua_dadbod.url`.
 2. `b:db`.
 3. `g:db`.
 4. `$DATABASE_URL`.
@@ -166,7 +166,7 @@ For a buffer, connection resolution is:
 Each adapter is a table:
 
 ```lua
----@class SqluaAdapter
+---@class LuaDadbodAdapter
 ---@field name string
 ---@field aliases? table<string, true>
 ---@field binary string
@@ -196,7 +196,7 @@ Each adapter is a table:
   `{dbname_lit}` expand to escaped SQL string literals.
 - Adapters may omit metadata. The UI then shows tables only or no tree, and
   completion degrades to whatever is available.
-- Registration is `require("sqlua.adapters").register(def)`, so a user adapter
+- Registration is `require("lua-dadbod.adapters").register(def)`, so a user adapter
   is one file and one call.
 
 Metadata is fetched with the same CLI, `opts.meta = true`, and split on tabs
@@ -249,7 +249,7 @@ One table keyed by resolved connection URL:
   short timeout (default 3s), then caches it.
 - Opening a query from the drawer means the cache is already warm, so the
   first completion does not block.
-- `:SqluaClearCache` and drawer refresh clear it.
+- `:LuaDadbodClearCache` and drawer refresh clear it.
 - Keys include the schema, fixing the column collision in the old completion
   plugin.
 
@@ -267,13 +267,13 @@ One table keyed by resolved connection URL:
 
 - No `:DB g:x = url`, no `:DB url :command`, no operator mapping.
 - Command completion is deferred until the core UI is stable.
-- `:Sqlua` opens the drawer, `:SqluaToggle` toggles, `:SqluaClose` closes.
-- `:SqluaAddConnection` prompts for URL and name, validates the URL, appends to
+- `:LuaDadbod` opens the drawer, `:LuaDadbodToggle` toggles, `:LuaDadbodClose` closes.
+- `:LuaDadbodAddConnection` prompts for URL and name, validates the URL, appends to
   `connections.json`, and refreshes the drawer.
-- `:SqluaFindBuffer` attaches the current buffer to a connection.
-- `:SqluaRenameBuffer` renames a saved query.
-- `:SqluaClearCache` clears metadata and completion caches.
-- `:SqluaRefresh` rebuilds the connection list and clears metadata.
+- `:LuaDadbodFindBuffer` attaches the current buffer to a connection.
+- `:LuaDadbodRenameBuffer` renames a saved query.
+- `:LuaDadbodClearCache` clears metadata and completion caches.
+- `:LuaDadbodRefresh` rebuilds the connection list and clears metadata.
 - All commands catch errors and report them through `vim.notify`.
 
 ### Drawer
@@ -332,9 +332,9 @@ One text buffer, one row list, rendered from scratch on each change. Expanded st
 - There is no `+ Add connection` row. With no connections, the drawer shows
   `No connections. Press A to add one.`
 - Drawer colors come from highlight groups linked to the active colorscheme:
-  `SqluaDb`, `SqluaTable`, `SqluaSchema`, `SqluaScratchpads`, `SqluaScratchpad`,
-  `SqluaHistory`, `SqluaHistoryEntry`, `SqluaChevron`, `SqluaCount`,
-  `SqluaActive`, and `SqluaHelp`. Users can override any of them.
+  `LuaDadbodDb`, `LuaDadbodTable`, `LuaDadbodSchema`, `LuaDadbodScratchpads`, `LuaDadbodScratchpad`,
+  `LuaDadbodHistory`, `LuaDadbodHistoryEntry`, `LuaDadbodChevron`, `LuaDadbodCount`,
+  `LuaDadbodActive`, and `LuaDadbodHelp`. Users can override any of them.
 
 - `<CR>` / `o`: preview a table result, or open/toggle other rows.
 - `e`: open an editable `List` query for the selected table without running it.
@@ -358,7 +358,7 @@ One text buffer, one row list, rendered from scratch on each change. Expanded st
 - `S` uses `auto_execute_helpers`; `e` always opens the SQL without running.
   Enter and `C` are always result-only previews.
 - `List` defaults to 50 rows through `default_query`.
-- No helper submenu, no per-connection query section, and no `:SqluaBuffers`
+- No helper submenu, no per-connection query section, and no `:LuaDadbodBuffers`
   picker.
 - No sibling navigation, help pane, result list, or progress animation.
 
@@ -375,7 +375,7 @@ Default global maps, installed by `setup()`:
 - Created as real files under `tmp_location`, so `:w` works and
   `BufWritePost` can run the query.
 - Name: `<slug(conn)>-<table>-<helper>-<timestamp>.sql`.
-- `b:sqlua = { conn, conn_key, conn_name, dbms, url, source, schema, table, helper, bind, path }`.
+- `b:lua_dadbod = { conn, conn_key, conn_name, dbms, url, source, schema, table, helper, bind, path }`.
 - The buffer keeps `filetype=sql`, so Treesitter and LSP keep working.
 - `BufWritePost` runs the whole buffer when `execute_on_save = true`.
 - `<Leader>S` runs the whole buffer; in visual mode it runs the selection.
@@ -387,7 +387,7 @@ Default global maps, installed by `setup()`:
   parameter, enter a new value, or clear all.
 - Bind parameters are detected with `bind_param_pattern` (default `:%w+`),
   ignoring matches inside single quotes, prompted once, cached in
-  `b:sqlua.bind`, and substituted with quoting for numeric, boolean, already
+  `b:lua_dadbod.bind`, and substituted with quoting for numeric, boolean, already
   quoted, and string values.
 - Opening a file under `queries/<slug(connection-key)>/` sets the connection from the folder
   and marks it saved. No filename guessing beyond that.
@@ -396,8 +396,8 @@ Default global maps, installed by `setup()`:
 
 ### Results
 
-- Scratch buffer named `sqlua://result/<n>`, `buftype=nofile`,
-  `bufhidden=wipe`, `filetype=sqlua_result`.
+- Scratch buffer named `lua-dadbod://result/<n>`, `buftype=nofile`,
+  `bufhidden=wipe`, `filetype=lua_dadbod_result`.
 - Header: connection name, status, row count, elapsed time, exit code.
 - Results are parsed from adapter output: PostgreSQL/SQLite CSV, MySQL TSV.
 - Cells are padded, numeric columns right-aligned, NULL shown as `NULL`, and
@@ -412,14 +412,14 @@ Default global maps, installed by `setup()`:
 - No folds, cell yank, header yank, foreign-key jump, or layout toggle.
   Normal Vim search and yank still work on the output.
 - Events:
-  - `User SqluaQueryPre`
-  - `User SqluaQueryPost`
+  - `User LuaDadbodQueryPre`
+  - `User LuaDadbodQueryPost`
   - payload: `{ conn, sql, code, elapsed }`
 
 ### Completion
 
 - Cache per resolved connection, not per buffer.
-- Context from `b:sqlua`, then `b:db`, then `g:db`, then `$DATABASE_URL`.
+- Context from `b:lua_dadbod`, then `b:db`, then `g:db`, then `$DATABASE_URL`.
 - Prefix cases:
   - `schema.` -> tables in that schema.
   - `table.` or `alias.` -> columns of that table.
@@ -435,16 +435,16 @@ Default global maps, installed by `setup()`:
   short shared list.
 - Sources:
   - `omnifunc`, opt-in through `completion.omnifunc = true`.
-  - `require("sqlua.completion_blink")`.
+  - `require("lua-dadbod.completion_blink")`.
 - `nvim-cmp` support is dropped. If it is ever needed, it is a small adapter
   around the same completion function.
 
 ## 6. Configuration
 
 ```lua
-require("sqlua").setup({
-  save_location = vim.fn.stdpath("data") .. "/sqlua",
-  tmp_location = vim.fn.stdpath("cache") .. "/sqlua/queries",
+require("lua-dadbod").setup({
+  save_location = vim.fn.stdpath("data") .. "/lua-dadbod",
+  tmp_location = vim.fn.stdpath("cache") .. "/lua-dadbod/queries",
   win = { width = 40, position = "left" },
   default_query = "select * from {optional_schema}{table} limit 50;",
   execute_on_save = true,
@@ -480,25 +480,25 @@ schemas are always listed for now.
 `table_helpers` merges over adapter defaults. An empty string removes a helper.
 `mappings = false` disables all built-in maps. `icons = false` disables type
 icons while keeping the expand/collapse markers. Drawer colors are controlled
-by the `Sqlua*` highlight groups listed above, not by hardcoded colors.
+by the `LuaDadbod*` highlight groups listed above, not by hardcoded colors.
 
 Public API:
 
 ```lua
-local sqlua = require("sqlua")
+local lua_dadbod = require("lua-dadbod")
 
-sqlua.setup(opts)
-sqlua.open()
-sqlua.toggle()
-sqlua.close()
-sqlua.add_connection(opts?)          -- nil opens prompts
-sqlua.attach(bufnr?)                 -- nil means current buffer
-sqlua.connections()                  -- copy of the connection list
-sqlua.get_connection(key)
-sqlua.run(sql, opts, cb)             -- one low-level job
-sqlua.statusline(opts)
-sqlua.clear_cache()
-sqlua.refresh()
+lua_dadbod.setup(opts)
+lua_dadbod.open()
+lua_dadbod.toggle()
+lua_dadbod.close()
+lua_dadbod.add_connection(opts?)          -- nil opens prompts
+lua_dadbod.attach(bufnr?)                 -- nil means current buffer
+lua_dadbod.connections()                  -- copy of the connection list
+lua_dadbod.get_connection(key)
+lua_dadbod.run(sql, opts, cb)             -- one low-level job
+lua_dadbod.statusline(opts)
+lua_dadbod.clear_cache()
+lua_dadbod.refresh()
 ```
 
 ## 7. What we drop, and why
@@ -536,11 +536,11 @@ sqlua.refresh()
 | Cell and header yank | Same reason; can be added later on top of a normalized result format |
 | Indexes, FKs, PKs, Constraints, Describe helpers | Fragile copied SQL; `List` and `Columns` stay, the rest move to docs snippets |
 | Dotenv environment scan | Hidden global behavior; `g:dbs` or the connection file is explicit |
-| Filename-based database inference | `b:sqlua` and the saved-query folder are reliable |
+| Filename-based database inference | `b:lua_dadbod` and the saved-query folder are reliable |
 | Buffer name generator and table sorter callbacks | Configuration surface without a clear need |
 | Connection rename | Delete and add is enough |
 | Legacy `g:db_ui_*` options and `:DBUI*` commands | Clean break for a new plugin |
-| `dbui` and `dbout` filetypes | Renamed to `sqlua` and `sqlua_result` |
+| `dbui` and `dbout` filetypes | Renamed to `lua_dadbod` and `lua_dadbod_result` |
 | Bind parameter edit menu | Keep edit and clear, drop the multi-step confirm flow |
 
 ### From vim-dadbod-completion
@@ -555,7 +555,7 @@ sqlua.refresh()
 | Async refresh hacks (`coc#refresh`, `compe#complete`, `feedkeys`, deoplete flag) | Replaced by a cache that is warm before completion, or one short sync fetch |
 | coc, deoplete, nvim-compe, ddc, completion-nvim, denops, Python, JS bridges | One Omni source and one Blink source |
 | nvim-cmp source | Dropped; Blink and opt-in Omni cover the current setup |
-| `:DBCompletionClearCache` | `:SqluaClearCache` |
+| `:DBCompletionClearCache` | `:LuaDadbodClearCache` |
 
 ## 8. Bugs and rough edges we fix
 
@@ -572,7 +572,7 @@ sqlua.refresh()
 - Columns are cached by table name only, so same-named tables in different
   schemas collide. Fix: schema-qualified keys.
 - Saved queries infer their connection from a path transform. Fix: metadata in
-  `b:sqlua`, plus a folder-to-connection lookup for files opened directly.
+  `b:lua_dadbod`, plus a folder-to-connection lookup for files opened directly.
 - Dotenv discovery matches the prefix anywhere in the variable name. Fix:
   removed.
 - SQLite table names with spaces need a UI workaround because `.tables` output
@@ -630,7 +630,7 @@ without duplicates, and the cache survives multiple buffers.
 ### Phase 6: adapters and docs
 
 - PostgreSQL and MySQL/MariaDB.
-- README, `doc/sqlua.txt`, migration table, manual test matrix.
+- README, `doc/lua-dadbod.txt`, migration table, manual test matrix.
 
 Checkpoint: each adapter runs a simple query and lists metadata against a real
 server, or is documented as untested when no server is available.
@@ -656,18 +656,18 @@ server, or is documented as untested when no server is available.
 
 | Old | New |
 |---|---|
-| `:DBUI` | `:Sqlua` |
-| `:DBUIToggle` | `:SqluaToggle` |
-| `:DBUIClose` | `:SqluaClose` |
-| `:DBUIAddConnection` | `:SqluaAddConnection` |
-| `:DBUIFindBuffer` | `:SqluaFindBuffer` |
-| `:DBUIRenameBuffer` | `:SqluaRenameBuffer` |
-| `:DBCompletionClearCache` | `:SqluaClearCache` |
+| `:DBUI` | `:LuaDadbod` |
+| `:DBUIToggle` | `:LuaDadbodToggle` |
+| `:DBUIClose` | `:LuaDadbodClose` |
+| `:DBUIAddConnection` | `:LuaDadbodAddConnection` |
+| `:DBUIFindBuffer` | `:LuaDadbodFindBuffer` |
+| `:DBUIRenameBuffer` | `:LuaDadbodRenameBuffer` |
+| `:DBCompletionClearCache` | `:LuaDadbodClearCache` |
 | `g:db_ui_*` | `setup(opts)` |
 | `g:dbs`, `g:db` | unchanged |
-| `DBUI_URL` / `DBUI_NAME` | `SQLUA_URL` / `SQLUA_NAME` |
-| `~/.local/share/db_ui` | `stdpath("data") .. "/sqlua"` |
-| `dbui` / `dbout` filetypes | `sqlua` / `sqlua_result` |
+| `DBUI_URL` / `DBUI_NAME` | `LUA_DADBOD_URL` / `LUA_DADBOD_NAME` |
+| `~/.local/share/db_ui` | `stdpath("data") .. "/lua-dadbod"` |
+| `dbui` / `dbout` filetypes | `lua_dadbod` / `lua_dadbod_result` |
 | `<Plug>(DBUI_*)` | buffer mappings from config |
 
 `:DB` keeps its familiar forms. Saved queries are not migrated automatically.
@@ -681,10 +681,10 @@ Copy them into `queries/<connection-key-slug>/` or keep using the old folder as
    ClickHouse, Snowflake, Presto/Trino, Impala, osquery, and jq are deferred.
 2. Results: structured CLI output rendered as an aligned table, with raw
    fallback. No cell yank, folds, foreign-key jump, or layout toggle in v1.
-3. Keep `:DB` alongside the `:Sqlua*` commands.
+3. Keep `:DB` alongside the `:LuaDadbod*` commands.
 4. Completion: Blink plus opt-in Omni. No `nvim-cmp`.
 5. Drawer: connection trees plus global Scratchpads and History. No
-   per-connection query rows, helper submenu, `:SqluaBuffers` picker, or
+   per-connection query rows, helper submenu, `:LuaDadbodBuffers` picker, or
    `+ Add connection` row. Scratchpads and History default to collapsed.
    A blank line separates connections from Scratchpads; Scratchpads and History
    are adjacent. `A` adds a connection.
@@ -710,7 +710,7 @@ Copy them into `queries/<connection-key-slug>/` or keep using the old folder as
     use just the database name. This applies to connections, scratchpads, and
     history.
 12. Icons and colors: Nerd Font glyphs from the config, with `icons = false`
-    disabling type icons. Colors use `Sqlua*` highlight groups linked to the
+    disabling type icons. Colors use `LuaDadbod*` highlight groups linked to the
     colorscheme, so no palette is hardcoded. The database icon uses `Normal`
     so it is white/silver, not green.
 13. Default global maps installed by `setup()`: `<leader>Do` open,
@@ -723,7 +723,7 @@ Implemented:
 
 - `config.lua`, `util.lua`, `url.lua`, `sql.lua`, `job.lua`, `db.lua`.
 - Adapter registry and the SQLite adapter.
-- `init.lua` with `setup`, and the `plugin/sqlua.lua` load guard.
+- `init.lua` with `setup`, and the `plugin/lua-dadbod.lua` load guard.
 - Tests for URL parsing, adapter argv, jobs, and config.
 
 Verification:
@@ -748,7 +748,7 @@ Implemented:
 - Query buffers under `tmp_location`, split opening, helper SQL, execute on
   save, bind parameters, save-as, and the query mappings.
 - `:DB` with query text, range, file input, and interactive console forms.
-- User events `SqluaQueryPre` and `SqluaQueryPost`.
+- User events `LuaDadbodQueryPre` and `LuaDadbodQueryPost`.
 
 Verification:
 
@@ -765,7 +765,7 @@ Not started: connections, drawer, attach/find buffer, completion.
 
 Implemented:
 
-- Connection discovery from `SQLUA_URL` / `SQLUA_NAME`, `g:db`, `g:dbs`
+- Connection discovery from `LUA_DADBOD_URL` / `LUA_DADBOD_NAME`, `g:db`, `g:dbs`
   (mapping or ordered list, string or function values), and
   `connections.json`.
 - Connection state, duplicate handling, saved query folders, active connection,
@@ -781,9 +781,9 @@ Implemented:
 - History is session-only, deduplicated by connection plus SQL, capped at 50,
   with a floating full-query preview and direct rerun.
 - Drawer actions: `Enter`/`o`, `S`, `n`, `C`, `A`, `r`, `d`, `R`, `H`, `q`, `?`.
-- Commands: `:Sqlua`, `:SqluaToggle`, `:SqluaClose`, `:SqluaAddConnection`,
-  `:SqluaFindBuffer`, `:SqluaRenameBuffer`, `:SqluaClearCache`, and
-  `:SqluaRefresh`.
+- Commands: `:LuaDadbod`, `:LuaDadbodToggle`, `:LuaDadbodClose`, `:LuaDadbodAddConnection`,
+  `:LuaDadbodFindBuffer`, `:LuaDadbodRenameBuffer`, `:LuaDadbodClearCache`, and
+  `:LuaDadbodRefresh`.
 - Public API: `open`, `toggle`, `close`, `add_connection`, `attach`,
   `connections`, `get_connection`, `run`, `statusline`, `clear_cache`, and
   `refresh`.
