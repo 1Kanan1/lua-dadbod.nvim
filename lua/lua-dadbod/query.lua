@@ -273,7 +273,7 @@ local function setup_buffer(bufnr, adapter)
         end, { buffer = bufnr, silent = true, desc = "Run lua-dadbod selection" })
         vim.keymap.set("n", "<Leader>W", function()
             M.save(bufnr)
-        end, { buffer = bufnr, silent = true, desc = "Save lua-dadbod query" })
+        end, { buffer = bufnr, silent = true, desc = "Save lua-dadbod query as" })
         vim.keymap.set("n", "<Leader>E", function()
             M.edit_bind(bufnr)
         end, { buffer = bufnr, silent = true, desc = "Edit lua-dadbod bind parameters" })
@@ -321,11 +321,6 @@ function M.open(connection, opts)
     while vim.fn.filereadable(path) == 1 or vim.fn.bufnr(path) ~= -1 do
         suffix = suffix + 1
         path = directory .. "/" .. base .. "-" .. stamp .. "-" .. suffix .. ".sql"
-    end
-
-    local ok, write_err = util.write_file(path, {})
-    if not ok then
-        return nil, write_err
     end
 
     util.open_split({ split = opts.split, reuse = true })

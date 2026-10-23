@@ -811,4 +811,35 @@ expands it, loads tables asynchronously, previews a table result, opens the
 connections, `dbms/db` labels, scratchpads, history preview plus rerun, and the
 global mappings.
 
+## Phase 4 checkpoint
+
+Implemented:
+
+- Save-as prompts for a name and writes under
+  `<save_location>/queries/<slug(connection-key)>/<name>.sql`. Saving under a
+  connection folder is what marks the file as a saved query; reopening it
+  attaches the connection from the folder.
+- Rename updates the file, the buffer name, and `meta.path`. Delete removes the
+  file and wipes the buffer. Both keep open buffers in sync.
+- Attach via `:LuaDadbodFindBuffer` gives an existing buffer the query
+  mappings, connection metadata, and execute-on-save behavior.
+- `BufWritePost` runs the whole buffer when `execute_on_save` is true and does
+  nothing when false. Scratchpads refresh after save and after `BufDelete` or
+  `BufWipeout`.
+- `statusline(opts)` returns `<prefix><name> > <schema> > <table>` for attached
+  buffers, honors `prefix`, `separator`, and `show`, and returns `""` for other
+  buffers.
+- Scratchpads are named buffers without a pre-created file, so the first `:w`
+  creates it. Pre-creating it made the first `:w` fail with `E13: File exists`.
+
+Verification:
+
+```
+nvim --headless -u NONE -c "lua dofile('tests/run.lua')" -c "qa!"
+```
+
+Result: 99 passed, 0 failed. Tests cover save/rename/delete, execute on save
+enabled and disabled, statusline formatting, and reopening a saved query in a
+separate `nvim --headless` process with `g:dbs` configured.
+
 Not started: completion.

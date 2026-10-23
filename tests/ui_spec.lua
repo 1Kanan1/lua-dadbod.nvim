@@ -295,6 +295,58 @@ h.test("opening a saved query attaches its connection", function()
     restore_globals(previous, directory)
 end)
 
+h.test("reopen a saved query in a new process", function()
+    local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:gsub("^@", ""), ":p:h:h")
+    local directory = vim.fn.tempname()
+    local path = directory .. "/lua-dadbod/queries/" .. util.slug("test_g:dbs") .. "/saved.sql"
+    util.ensure_dir(vim.fs.dirname(path))
+    vim.fn.writefile({ "select 1;" }, path)
+
+    local out = vim.fn.system({
+        "nvim",
+        "--headless",
+        "-u",
+        "NONE",
+        "--cmd",
+        "set rtp+=" .. vim.fn.fnameescape(root),
+        "-c",
+        "runtime plugin/lua-dadbod.lua",
+        "-c",
+        "lua require('lua-dadbod').setup({ save_location = " .. string.format("%q", directory .. "/lua-dadbod") .. " })",
+        "-c",
+        "let g:dbs = {'test': 'sqlite::memory:'}",
+        "-c",
+        "edit " .. vim.fn.fnameescape(path),
+        "-c",
+        "lua print('CONN=' .. tostring(vim.b.lua_dadbod and vim.b.lua_dadbod.conn_key))",
+        "-c",
+        "lua print('SOURCE=' .. tostring(vim.b.lua_dadbod and vim.b.lua_dadbod.source))",
+        "-c",
+        "qa!",
+    })
+    h.eq(vim.v.shell_error, 0)
+    h.matches(out, "CONN=test_g:dbs")
+    h.matches(out, "SOURCE=saved")
+
+    vim.fn.delete(directory, "rf")
+end)
+
+h.test("statusline reports the query context", function()
+    local api = require("lua-dadbod")
+    local bufnr = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(bufnr)
+    vim.b[bufnr].lua_dadbod = { conn_name = "test", schema = "public", table = "users" }
+
+    h.eq(api.statusline(), "DB: test > public > users")
+    h.eq(api.statusline({ prefix = "", separator = ".", show = { "table", "db_name" } }), "users.test")
+    h.eq(api.statusline({ show = { "schema" } }), "DB: public")
+
+    vim.b[bufnr].lua_dadbod = nil
+    h.eq(api.statusline(), "")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end)
+
 h.test("n creates a scratchpad for the active connection", function()
     pcall(vim.cmd, "silent! only")
     local previous = {

@@ -1,6 +1,8 @@
 local h = require("tests.harness")
+local config = require("lua-dadbod.config")
 local db = require("lua-dadbod.db")
 local execute = require("lua-dadbod.execute")
+local query = require("lua-dadbod.query")
 
 local function wait_for(predicate)
     return vim.wait(5000, predicate, 10)
@@ -201,4 +203,50 @@ h.test("execute.parse_args", function()
     h.is_nil(connection)
     h.is_nil(statement)
     h.eq(file, "/tmp/query.sql")
+end)
+
+h.test("execute on save follows the config", function()
+    local previous = {
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+        execute = config.get().execute_on_save,
+    }
+    local directory = vim.fn.tempname()
+    local function setup(execute_on_save)
+        config.setup({
+            save_location = directory .. "/lua-dadbod",
+            tmp_location = directory .. "/queries",
+            execute_on_save = execute_on_save,
+        })
+    end
+
+    setup(true)
+    local bufnr = h.ok(query.open("sqlite::memory:", { auto_execute = false }))
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "select 7 as saved;" })
+    vim.cmd("silent write")
+
+    h.ok(wait_for(function()
+        return vim.b[bufnr].lua_dadbod_result_buf ~= nil
+    end), "execute_on_save did not start a query")
+    local result_buf = vim.b[bufnr].lua_dadbod_result_buf
+    h.ok(wait_for(function()
+        return result_text(result_buf):find("saved", 1, true) ~= nil
+    end), "saved query did not finish")
+    h.matches(result_text(result_buf), "saved")
+
+    setup(false)
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "select 8 as skipped;" })
+    vim.cmd("silent write")
+    vim.wait(300)
+    h.eq(vim.b[bufnr].lua_dadbod_result_buf, result_buf, "execute_on_save=false still ran the query")
+
+    pcall(vim.api.nvim_buf_delete, result_buf, { force = true })
+    pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
+    pcall(vim.cmd, "silent! only")
+    vim.fn.delete(directory, "rf")
+    config.setup({
+        save_location = previous.save,
+        tmp_location = previous.tmp,
+        execute_on_save = previous.execute,
+    })
 end)
