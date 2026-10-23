@@ -34,6 +34,21 @@ function M.interactive(parsed)
 	return { M.binary, url.file_path(parsed) }
 end
 
+function M.missing_warning(parsed)
+	local path = url.file_path(parsed)
+	if path == ":memory:" or vim.fn.filereadable(path) == 1 then
+		return nil
+	end
+	if vim.fn.isdirectory(path) == 1 then
+		return "SQLite path is a directory: " .. path
+	end
+	local parent = vim.fs.dirname(path)
+	if parent and parent ~= "" and vim.fn.isdirectory(parent) == 0 then
+		return "SQLite database directory does not exist; cannot create " .. path
+	end
+	return "SQLite database not found; creating an empty database: " .. path
+end
+
 function M.tables_sql()
 	return "select name from sqlite_schema where type in ('table','view') and name not like 'sqlite_%' order by name"
 end

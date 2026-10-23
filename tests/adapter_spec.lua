@@ -67,6 +67,27 @@ h.test("sqlite helpers", function()
 	h.matches(adapter.helpers.Columns, "pragma_table_info")
 end)
 
+h.test("sqlite warns before creating a missing database", function()
+	local adapter = h.ok(adapters.get("sqlite"))
+	local directory = vim.fn.tempname()
+	vim.fn.mkdir(directory, "p")
+
+	local path = directory .. "/new.db"
+	h.matches(adapter.missing_warning(h.ok(db.parse("sqlite:" .. path))), "creating an empty database")
+
+	vim.fn.writefile({}, path)
+	h.is_nil(adapter.missing_warning(h.ok(db.parse("sqlite:" .. path))))
+	h.is_nil(adapter.missing_warning(h.ok(db.parse("sqlite::memory:"))))
+
+	h.matches(adapter.missing_warning(h.ok(db.parse("sqlite:" .. directory))), "is a directory")
+	h.matches(
+		adapter.missing_warning(h.ok(db.parse("sqlite:" .. directory .. "/missing/new.db"))),
+		"directory does not exist"
+	)
+
+	vim.fn.delete(directory, "rf")
+end)
+
 h.test("sqlite binary lookup", function()
 	local binary = h.ok(db.binary("sqlite::memory:"))
 	h.eq(binary, "sqlite3")

@@ -26,6 +26,37 @@ h.test("db.run executes SQL", function()
 	h.eq(result.timed_out, false)
 end)
 
+h.test("db.run warns before creating a missing SQLite file", function()
+	local previous = vim.notify
+	local notices = {}
+	vim.notify = function(message, level)
+		notices[#notices + 1] = { message, level }
+	end
+	local directory = vim.fn.tempname()
+	vim.fn.mkdir(directory, "p")
+	local path = directory .. "/new.db"
+	local done = false
+	local handle, err = db.run("sqlite:" .. path, "select 1;", {}, function()
+		done = true
+	end)
+	local finished = handle ~= nil and wait_for(function()
+		return done
+	end)
+	vim.notify = previous
+
+	h.ok(handle, err)
+	h.ok(finished, "query did not finish")
+	h.eq(vim.fn.filereadable(path), 1)
+	local warned = false
+	for _, notice in ipairs(notices) do
+		if notice[2] == vim.log.levels.WARN and notice[1]:find("creating an empty database", 1, true) then
+			warned = true
+		end
+	end
+	h.eq(warned, true)
+	vim.fn.delete(directory, "rf")
+end)
+
 h.test("execute.run creates a result buffer", function()
 	local source = vim.api.nvim_get_current_buf()
 	local result_buf, err = execute.run("select 1 as x;", { conn = "sqlite::memory:" })

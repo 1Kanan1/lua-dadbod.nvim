@@ -231,6 +231,14 @@ function M.run(input, sql, opts, callback)
 		return nil, err
 	end
 
+	local parsed, parsed_adapter = M.parse(input)
+	if parsed and parsed_adapter and parsed_adapter.missing_warning then
+		local warning = parsed_adapter.missing_warning(parsed)
+		if warning then
+			util.warn(warning)
+		end
+	end
+
 	local argv, env, adapter = M.argv(input, opts)
 	if not argv then
 		return nil, adapter
