@@ -21,7 +21,7 @@ local defaults = {
 		scratchpads = "󰉋",
 		scratchpad = "",
 		history = "󰋚",
-		history_entry = "·",
+		history_entry = "󰓫",
 		active = "●",
 	},
 	result = {

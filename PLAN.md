@@ -314,7 +314,10 @@ One text buffer, one row list, rendered from scratch on each change. Expanded st
 - Scratchpads is global. It lists saved query files from every connection
   folder plus open query buffers. Labels show the connection in parentheses.
   Unsaved or modified scratchpads are marked `*`. A saved file that is open in
-  a buffer appears once.
+  a buffer appears once. Deleting a query buffer or saving it refreshes the
+  list and the `*` marker without collapsing the section.
+- The drawer is always one window. Rendering closes any extra window that shows
+  the drawer buffer.
 - History is global and session-only. It records every query that finishes,
   newest first, capped at 50, and deduplicates by connection plus SQL.
 - `Enter` on a history row opens a floating preview with the full SQL.
@@ -337,6 +340,8 @@ One text buffer, one row list, rendered from scratch on each change. Expanded st
   `LuaDadbodActive`, and `LuaDadbodHelp`. Users can override any of them.
 
 - `<CR>` / `o`: preview a table result, or open/toggle other rows.
+- Opening a query, table, or saved scratchpad replaces the buffer in the normal
+  window right of the drawer instead of adding another split. `S` always splits.
 - `e`: open an editable `List` query for the selected table without running it.
 - `S`: open an editable query in a vertical split.
 - `n`: new scratchpad.
@@ -379,6 +384,10 @@ Default global maps, installed by `setup()`:
 - The buffer keeps `filetype=sql`, so Treesitter and LSP keep working.
 - `BufWritePost` runs the whole buffer when `execute_on_save = true`.
 - `<Leader>S` runs the whole buffer; in visual mode it runs the selection.
+- `<CR>` in normal mode runs the statement under the cursor; in visual mode it
+  runs the selection. Boundaries are top-level semicolons, ignoring semicolons in
+  strings, quoted identifiers, comments, and PostgreSQL dollar quotes. Cursor on a
+  blank or comment-only line runs the previous statement, then the next.
 - `<Leader>W` saves a copy under
   `<save_location>/queries/<slug(connection-key)>/<name>.sql` using
   `:noautocmd saveas`,

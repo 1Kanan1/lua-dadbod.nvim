@@ -123,6 +123,25 @@ function M.is_open()
 	return win ~= nil
 end
 
+local function drawer_windows()
+	local wins = {}
+	for _, win in ipairs(vim.api.nvim_list_wins()) do
+		local buf = vim.api.nvim_win_get_buf(win)
+		if vim.b[buf].lua_dadbod_drawer then
+			wins[#wins + 1] = win
+		end
+	end
+	return wins
+end
+
+local function close_duplicates(win)
+	for _, other in ipairs(drawer_windows()) do
+		if other ~= win then
+			pcall(vim.api.nvim_win_close, other, true)
+		end
+	end
+end
+
 function M.open()
 	setup_highlights()
 	local win, buf = M.find_win()
@@ -161,8 +180,7 @@ function M.open()
 end
 
 function M.close()
-	local win = M.find_win()
-	if win then
+	for _, win in ipairs(drawer_windows()) do
 		pcall(vim.api.nvim_win_close, win, true)
 	end
 end
@@ -382,6 +400,7 @@ function M.render()
 	if not win or not buf then
 		return
 	end
+	close_duplicates(win)
 
 	local entries = ui.connections()
 	local icons = config.get().icons or {}

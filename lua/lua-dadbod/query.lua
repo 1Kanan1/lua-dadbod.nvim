@@ -1,6 +1,7 @@
 local config = require("lua-dadbod.config")
 local db = require("lua-dadbod.db")
 local sql = require("lua-dadbod.sql")
+local statement = require("lua-dadbod.statement")
 local url = require("lua-dadbod.url")
 local util = require("lua-dadbod.util")
 
@@ -243,6 +244,15 @@ local function apply_connection_meta(bufnr, ctx, opts)
 	return meta
 end
 
+local function refresh_drawer()
+	vim.schedule(function()
+		local drawer = package.loaded["lua-dadbod.drawer"]
+		if drawer and drawer.is_open() then
+			pcall(drawer.render)
+		end
+	end)
+end
+
 local function setup_buffer(bufnr, adapter)
 	vim.bo[bufnr].swapfile = false
 	vim.bo[bufnr].buflisted = true
@@ -253,6 +263,12 @@ local function setup_buffer(bufnr, adapter)
 			M.run(bufnr)
 		end, { buffer = bufnr, silent = true, desc = "Run lua-dadbod query" })
 		vim.keymap.set("v", "<Leader>S", function()
+			M.run_visual(bufnr)
+		end, { buffer = bufnr, silent = true, desc = "Run lua-dadbod selection" })
+		vim.keymap.set("n", "<CR>", function()
+			M.run_statement(bufnr)
+		end, { buffer = bufnr, silent = true, desc = "Run lua-dadbod statement" })
+		vim.keymap.set("x", "<CR>", function()
 			M.run_visual(bufnr)
 		end, { buffer = bufnr, silent = true, desc = "Run lua-dadbod selection" })
 		vim.keymap.set("n", "<Leader>W", function()
@@ -271,17 +287,13 @@ local function setup_buffer(bufnr, adapter)
 			if config.get().execute_on_save then
 				M.run(bufnr)
 			end
+			refresh_drawer()
 		end,
 	})
-	vim.api.nvim_create_autocmd("BufWipeout", {
+	vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
 		group = group,
 		buffer = bufnr,
-		callback = function()
-			local drawer = package.loaded["lua-dadbod.drawer"]
-			if drawer and drawer.is_open() then
-				pcall(drawer.render)
-			end
-		end,
+		callback = refresh_drawer,
 	})
 end
 
@@ -316,7 +328,7 @@ function M.open(connection, opts)
 		return nil, write_err
 	end
 
-	util.open_split({ split = opts.split })
+	util.open_split({ split = opts.split, reuse = true })
 	local bufnr = vim.api.nvim_create_buf(true, false)
 	vim.api.nvim_win_set_buf(0, bufnr)
 	vim.api.nvim_buf_set_name(bufnr, path)
@@ -374,7 +386,7 @@ function M.open_path(path, connection, opts)
 		return nil, err
 	end
 
-	util.open_split({ split = opts.split })
+	util.open_split({ split = opts.split, reuse = true })
 	local bufnr = vim.fn.bufadd(path)
 	vim.fn.bufload(bufnr)
 	vim.api.nvim_win_set_buf(0, bufnr)
@@ -402,7 +414,7 @@ function M.focus(bufnr, opts)
 		end
 	end
 
-	util.open_split({ split = opts.split })
+	util.open_split({ split = opts.split, reuse = true })
 	vim.api.nvim_win_set_buf(0, bufnr)
 	return bufnr
 end
@@ -446,6 +458,24 @@ end
 function M.run(bufnr)
 	bufnr = bufnr or vim.api.nvim_get_current_buf()
 	return require("lua-dadbod.execute").run_buffer({ bufnr = bufnr })
+end
+
+function M.run_statement(bufnr)
+	bufnr = bufnr or vim.api.nvim_get_current_buf()
+	local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+	local cursor = vim.api.nvim_win_get_cursor(0)[1]
+	local meta = vim.b[bufnr].lua_dadbod or {}
+	local chunk = statement.find(lines, cursor, statement.dialect(meta.dbms))
+	if not chunk then
+		util.warn("no SQL statement under cursor")
+		return
+	end
+
+	return require("lua-dadbod.execute").run_buffer({
+		bufnr = bufnr,
+		line1 = chunk.line1,
+		line2 = chunk.line2,
+	})
 end
 
 function M.run_visual(bufnr)

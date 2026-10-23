@@ -93,34 +93,78 @@ function M.split_lines(text)
 	return lines
 end
 
+local function is_normal(win)
+	local buf = vim.api.nvim_win_get_buf(win)
+	return vim.api.nvim_win_get_config(win).relative == "" and not vim.b[buf].lua_dadbod_drawer
+end
+
+local function normal_window()
+	for _, win in ipairs(vim.api.nvim_list_wins()) do
+		if is_normal(win) then
+			return win
+		end
+	end
+end
+
+local function window_to_the_right()
+	local winnr = vim.fn.winnr("l")
+	if winnr == 0 then
+		return nil
+	end
+	local win = vim.fn.win_getid(winnr)
+	if win == 0 or not is_normal(win) then
+		return nil
+	end
+	return win
+end
+
 function M.open_split(opts)
 	opts = opts or {}
 	local current = vim.api.nvim_get_current_win()
 	local current_buf = vim.api.nvim_win_get_buf(current)
-	if vim.api.nvim_win_get_config(current).relative ~= "" or vim.b[current_buf].lua_dadbod_drawer then
-		for _, win in ipairs(vim.api.nvim_list_wins()) do
-			local buf = vim.api.nvim_win_get_buf(win)
-			if vim.api.nvim_win_get_config(win).relative == "" and not vim.b[buf].lua_dadbod_drawer then
-				vim.api.nvim_set_current_win(win)
-				break
-			end
-		end
+	local current_drawer = vim.b[current_buf].lua_dadbod_drawer == true
+	local current_float = vim.api.nvim_win_get_config(current).relative ~= ""
+	local target
+
+	if current_drawer then
+		target = window_to_the_right()
+	elseif current_float then
+		target = normal_window()
+	elseif opts.reuse then
+		target = current
 	end
 
-	local command = opts.split == "vsplit" and "botright vsplit" or "botright split"
+	if opts.reuse and not opts.split and target then
+		if opts.bufnr then
+			vim.api.nvim_win_set_buf(target, opts.bufnr)
+		end
+		vim.api.nvim_set_current_win(target)
+		return target
+	end
+
+	if target then
+		vim.api.nvim_set_current_win(target)
+	end
+
+	local command
+	if opts.split == "vsplit" or (current_drawer and not target) then
+		command = "botright vsplit"
+	else
+		command = "botright split"
+	end
 	if not pcall(vim.cmd, command) then
 		if not pcall(vim.cmd, "tabnew") then
 			return nil
 		end
 	end
-	local target = vim.api.nvim_get_current_win()
+	local win = vim.api.nvim_get_current_win()
 	if opts.bufnr then
-		vim.api.nvim_win_set_buf(target, opts.bufnr)
+		vim.api.nvim_win_set_buf(win, opts.bufnr)
 	end
 	if opts.restore then
 		vim.api.nvim_set_current_win(current)
 	end
-	return target
+	return win
 end
 
 function M.input(prompt, default, callback)

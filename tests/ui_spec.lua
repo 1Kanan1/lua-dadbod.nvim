@@ -316,8 +316,37 @@ h.test("n creates a scratchpad for the active connection", function()
 	local drawer = require("lua-dadbod.drawer")
 	drawer.open()
 	h.is_nil(ui.active())
+
+	local function drawer_window_count()
+		local count = 0
+		for _, win in ipairs(vim.api.nvim_list_wins()) do
+			if vim.b[vim.api.nvim_win_get_buf(win)].lua_dadbod_drawer then
+				count = count + 1
+			end
+		end
+		return count
+	end
+
+	vim.cmd("split")
+	h.eq(drawer_window_count(), 2)
+	drawer.open()
+	h.eq(drawer_window_count(), 1, "drawer.open kept a duplicate drawer window")
+
+	local window_count = #vim.api.nvim_list_wins()
+
+	local drawer_buf = select(2, drawer.find_win())
+	local function drawer_text()
+		return table.concat(vim.api.nvim_buf_get_lines(drawer_buf, 0, -1, false), "\n")
+	end
+	local function scratchpad_count()
+		return tonumber(drawer_text():match("Scratchpads %((%d+)%)") or 0)
+	end
+	local base_count = scratchpad_count()
+
 	drawer.new_scratchpad()
 	h.eq(ui.active(), "test_g:dbs")
+	h.eq(#vim.api.nvim_list_wins(), window_count, "scratchpad opened a new split")
+	h.eq(scratchpad_count(), base_count + 1)
 
 	local query_buf = vim.api.nvim_get_current_buf()
 	local meta = vim.b[query_buf].lua_dadbod
@@ -325,9 +354,22 @@ h.test("n creates a scratchpad for the active connection", function()
 	h.eq(meta.dbms, "sqlite")
 	h.eq(meta.source, "scratch")
 
+	local drawer_win = drawer.find_win()
+	vim.api.nvim_set_current_win(drawer_win)
+	drawer.new_scratchpad()
+	h.eq(#vim.api.nvim_list_wins(), window_count, "second scratchpad opened a new split")
+	h.eq(scratchpad_count(), base_count + 2)
+	local second_buf = vim.api.nvim_get_current_buf()
+	h.eq(second_buf ~= query_buf, true, "second scratchpad did not replace the first")
+
 	vim.api.nvim_buf_delete(query_buf, { force = true })
+	h.ok(vim.wait(1000, function()
+		return scratchpad_count() == base_count + 1
+	end), "drawer did not refresh after deleting a scratchpad")
+
 	drawer.close()
 	h.eq(drawer.is_open(), false)
+	vim.api.nvim_buf_delete(second_buf, { force = true })
 	pcall(vim.cmd, "silent! only")
 	restore_globals(previous, directory)
 end)
@@ -462,10 +504,9 @@ h.test("drawer expands a connection and opens a table", function()
 	local meta = vim.b[query_buf].lua_dadbod
 	h.eq(meta.table, "users")
 	h.matches(table.concat(vim.api.nvim_buf_get_lines(query_buf, 0, -1, false), "\n"), "limit 50")
-	vim.api.nvim_buf_delete(query_buf, { force = true })
-
 	drawer.close()
 	h.eq(drawer.is_open(), false)
+	vim.api.nvim_buf_delete(query_buf, { force = true })
 
 	pcall(vim.cmd, "silent! only")
 	restore_globals(previous, directory)
@@ -629,6 +670,35 @@ h.test("failed connections collapse and stay inactive", function()
 	drawer.close()
 	pcall(vim.cmd, "silent! only")
 	restore_globals(previous, directory)
+end)
+
+h.test("open_split from a float splits the window below it", function()
+	pcall(vim.cmd, "silent! only")
+	local base_win = vim.api.nvim_get_current_win()
+	local float_buf = vim.api.nvim_create_buf(false, true)
+	local float_win = vim.api.nvim_open_win(float_buf, true, {
+		relative = "editor",
+		row = 2,
+		col = 2,
+		width = 20,
+		height = 5,
+	})
+	local new_buf = vim.api.nvim_create_buf(false, true)
+
+	local target = util.open_split({ bufnr = new_buf, restore = true })
+	h.ok(target, "no window was opened")
+	h.eq(vim.api.nvim_win_get_buf(target), new_buf)
+	h.eq(vim.api.nvim_get_current_win(), float_win)
+
+	local base_pos = vim.api.nvim_win_get_position(base_win)
+	local target_pos = vim.api.nvim_win_get_position(target)
+	h.eq(target_pos[2], base_pos[2], "result opened beside the window, not below")
+	h.eq(target_pos[1] > base_pos[1], true, "result opened above the window")
+	h.eq(vim.api.nvim_win_get_width(target), vim.api.nvim_win_get_width(base_win))
+
+	pcall(vim.api.nvim_win_close, float_win, true)
+	pcall(vim.api.nvim_buf_delete, new_buf, { force = true })
+	pcall(vim.cmd, "silent! only")
 end)
 
 h.test("global mappings follow setup", function()
