@@ -2,19 +2,19 @@ local source = debug.getinfo(1, "S").source:gsub("^@", "")
 local root = vim.fn.fnamemodify(source, ":p:h:h")
 
 package.path = table.concat({
-	root .. "/lua/?.lua",
-	root .. "/lua/?/init.lua",
-	root .. "/?.lua",
-	package.path,
+    root .. "/lua/?.lua",
+    root .. "/lua/?/init.lua",
+    root .. "/?.lua",
+    package.path,
 }, ";")
 
 vim.opt.runtimepath:append(root)
 vim.cmd("runtime plugin/lua-dadbod.lua")
 
 vim.notify = function(message, level)
-	if level == vim.log.levels.ERROR then
-		io.write("notify: " .. tostring(message) .. "\n")
-	end
+    if level == vim.log.levels.ERROR then
+        io.write("notify: " .. tostring(message) .. "\n")
+    end
 end
 
 vim.o.hidden = true

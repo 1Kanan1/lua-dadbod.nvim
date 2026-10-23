@@ -6,723 +6,723 @@ local ui = require("lua-dadbod.ui")
 local util = require("lua-dadbod.util")
 
 local function restore_globals(previous, directory)
-	vim.g.db = previous.db
-	vim.g.dbs = previous.dbs
-	vim.env.LUA_DADBOD_URL = previous.url
-	vim.env.LUA_DADBOD_NAME = previous.name
-	config.setup({
-		save_location = previous.save,
-		tmp_location = previous.tmp,
-	})
-	ui.reset()
-	if directory then
-		vim.fn.delete(directory, "rf")
-	end
+    vim.g.db = previous.db
+    vim.g.dbs = previous.dbs
+    vim.env.LUA_DADBOD_URL = previous.url
+    vim.env.LUA_DADBOD_NAME = previous.name
+    config.setup({
+        save_location = previous.save,
+        tmp_location = previous.tmp,
+    })
+    ui.reset()
+    if directory then
+        vim.fn.delete(directory, "rf")
+    end
 end
 
 h.test("ui discovers all connection sources", function()
-	local previous = {
-		db = vim.g.db,
-		dbs = vim.g.dbs,
-		url = vim.env.LUA_DADBOD_URL,
-		name = vim.env.LUA_DADBOD_NAME,
-		save = config.get().save_location,
-		tmp = config.get().tmp_location,
-	}
-	local directory = vim.fn.tempname()
-	config.setup({
-		save_location = directory .. "/lua-dadbod",
-		tmp_location = directory .. "/queries",
-	})
-	util.write_json(directory .. "/lua-dadbod/connections.json", {
-		{ name = "filedb", url = "sqlite::memory:" },
-	})
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    config.setup({
+        save_location = directory .. "/lua-dadbod",
+        tmp_location = directory .. "/queries",
+    })
+    util.write_json(directory .. "/lua-dadbod/connections.json", {
+        { name = "filedb", url = "sqlite::memory:" },
+    })
 
-	vim.g.db = "sqlite::memory:"
-	vim.g.dbs = {
-		dev = "sqlite::memory:",
-		file = function()
-			return "sqlite::memory:"
-		end,
-	}
-	vim.env.LUA_DADBOD_URL = "sqlite::memory:"
-	vim.env.LUA_DADBOD_NAME = "envdb"
+    vim.g.db = "sqlite::memory:"
+    vim.g.dbs = {
+        dev = "sqlite::memory:",
+        file = function()
+            return "sqlite::memory:"
+        end,
+    }
+    vim.env.LUA_DADBOD_URL = "sqlite::memory:"
+    vim.env.LUA_DADBOD_NAME = "envdb"
 
-	ui.reset()
-	local list = ui.refresh()
-	local by_key = {}
-	for _, entry in ipairs(list) do
-		by_key[entry.key] = entry
-	end
+    ui.reset()
+    local list = ui.refresh()
+    local by_key = {}
+    for _, entry in ipairs(list) do
+        by_key[entry.key] = entry
+    end
 
-	h.eq(by_key["default_g:db"].source, "g:db")
-	h.eq(by_key["dev_g:dbs"].source, "g:dbs")
-	h.eq(by_key["file_g:dbs"].source, "g:dbs")
-	h.eq(by_key["envdb_env"].source, "env")
-	h.eq(by_key["filedb_file"].source, "file")
+    h.eq(by_key["default_g:db"].source, "g:db")
+    h.eq(by_key["dev_g:dbs"].source, "g:dbs")
+    h.eq(by_key["file_g:dbs"].source, "g:dbs")
+    h.eq(by_key["envdb_env"].source, "env")
+    h.eq(by_key["filedb_file"].source, "file")
 
-	restore_globals(previous, directory)
+    restore_globals(previous, directory)
 end)
 
 h.test("db metadata cache fetches tables", function()
-	local path = vim.fn.tempname() .. ".db"
-	local created = false
-	db.run("sqlite:" .. path, "create table users(id integer, name text);", {}, function()
-		created = true
-	end)
-	h.ok(vim.wait(5000, function()
-		return created
-	end), "could not create test database")
+    local path = vim.fn.tempname() .. ".db"
+    local created = false
+    db.run("sqlite:" .. path, "create table users(id integer, name text);", {}, function()
+        created = true
+    end)
+    h.ok(vim.wait(5000, function()
+        return created
+    end), "could not create test database")
 
-	local tables, err
-	db.fetch_tables("sqlite:" .. path, function(value, fetch_err)
-		tables = value
-		err = fetch_err
-	end)
-	h.ok(vim.wait(5000, function()
-		return tables ~= nil or err ~= nil
-	end), "table metadata timed out")
-	h.is_nil(err)
-	h.ok(vim.tbl_contains(tables, "users"))
+    local tables, err
+    db.fetch_tables("sqlite:" .. path, function(value, fetch_err)
+        tables = value
+        err = fetch_err
+    end)
+    h.ok(vim.wait(5000, function()
+        return tables ~= nil or err ~= nil
+    end), "table metadata timed out")
+    h.is_nil(err)
+    h.ok(vim.tbl_contains(tables, "users"))
 
-	local cached
-	db.fetch_tables("sqlite:" .. path, function(value)
-		cached = value
-	end)
-	h.ok(cached, "cached metadata callback did not run")
-	h.ok(vim.tbl_contains(cached, "users"))
+    local cached
+    db.fetch_tables("sqlite:" .. path, function(value)
+        cached = value
+    end)
+    h.ok(cached, "cached metadata callback did not run")
+    h.ok(vim.tbl_contains(cached, "users"))
 
-	vim.fn.delete(path)
+    vim.fn.delete(path)
 end)
 
 h.test("ui adds and deletes file connections", function()
-	local previous = {
-		db = vim.g.db,
-		dbs = vim.g.dbs,
-		url = vim.env.LUA_DADBOD_URL,
-		name = vim.env.LUA_DADBOD_NAME,
-		save = config.get().save_location,
-		tmp = config.get().tmp_location,
-	}
-	local directory = vim.fn.tempname()
-	config.setup({ save_location = directory .. "/lua-dadbod" })
-	ui.reset()
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    config.setup({ save_location = directory .. "/lua-dadbod" })
+    ui.reset()
 
-	ui.add_connection({ name = "added", url = "sqlite::memory:" })
-	local entry = ui.get("added_file")
-	h.ok(entry)
-	h.eq(entry.source, "file")
-	h.eq(vim.fn.filereadable(directory .. "/lua-dadbod/connections.json"), 1)
+    ui.add_connection({ name = "added", url = "sqlite::memory:" })
+    local entry = ui.get("added_file")
+    h.ok(entry)
+    h.eq(entry.source, "file")
+    h.eq(vim.fn.filereadable(directory .. "/lua-dadbod/connections.json"), 1)
 
-	local ok, err = ui.delete_connection(entry)
-	h.ok(ok, err)
-	h.is_nil(ui.get("added_file"))
+    local ok, err = ui.delete_connection(entry)
+    h.ok(ok, err)
+    h.is_nil(ui.get("added_file"))
 
-	restore_globals(previous, directory)
+    restore_globals(previous, directory)
 end)
 
 h.test(":LuaDadbodFindBuffer attaches the current buffer", function()
-	local previous = {
-		db = vim.g.db,
-		dbs = vim.g.dbs,
-		url = vim.env.LUA_DADBOD_URL,
-		name = vim.env.LUA_DADBOD_NAME,
-		save = config.get().save_location,
-		tmp = config.get().tmp_location,
-	}
-	local directory = vim.fn.tempname()
-	config.setup({
-		save_location = directory .. "/lua-dadbod",
-		tmp_location = directory .. "/queries",
-	})
-	vim.g.dbs = { only = "sqlite::memory:" }
-	ui.reset()
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    config.setup({
+        save_location = directory .. "/lua-dadbod",
+        tmp_location = directory .. "/queries",
+    })
+    vim.g.dbs = { only = "sqlite::memory:" }
+    ui.reset()
 
-	local bufnr = vim.api.nvim_create_buf(true, false)
-	vim.api.nvim_set_current_buf(bufnr)
-	vim.cmd("LuaDadbodFindBuffer")
+    local bufnr = vim.api.nvim_create_buf(true, false)
+    vim.api.nvim_set_current_buf(bufnr)
+    vim.cmd("LuaDadbodFindBuffer")
 
-	local meta = vim.b[bufnr].lua_dadbod
-	h.matches(meta.conn, "sqlite::memory:")
-	h.eq(meta.conn_name, "only")
-	h.eq(meta.conn_key, "only_g:dbs")
-	h.eq(meta.dbms, "sqlite")
-	h.eq(meta.source, "attached")
+    local meta = vim.b[bufnr].lua_dadbod
+    h.matches(meta.conn, "sqlite::memory:")
+    h.eq(meta.conn_name, "only")
+    h.eq(meta.conn_key, "only_g:dbs")
+    h.eq(meta.dbms, "sqlite")
+    h.eq(meta.source, "attached")
 
-	restore_globals(previous, directory)
+    restore_globals(previous, directory)
 end)
 
 h.test("connection labels add the dbms only for multiple dbms", function()
-	local previous = {
-		db = vim.g.db,
-		dbs = vim.g.dbs,
-		url = vim.env.LUA_DADBOD_URL,
-		name = vim.env.LUA_DADBOD_NAME,
-		save = config.get().save_location,
-		tmp = config.get().tmp_location,
-	}
-	local directory = vim.fn.tempname()
-	config.setup({ save_location = directory .. "/lua-dadbod" })
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    config.setup({ save_location = directory .. "/lua-dadbod" })
 
-	vim.g.dbs = { test = "sqlite::memory:" }
-	ui.reset()
-	local sqlite = ui.get("test_g:dbs")
-	h.eq(ui.has_multiple_dbms(), false)
-	h.eq(ui.connection_label(sqlite.dbms, sqlite.name), "test")
+    vim.g.dbs = { test = "sqlite::memory:" }
+    ui.reset()
+    local sqlite = ui.get("test_g:dbs")
+    h.eq(ui.has_multiple_dbms(), false)
+    h.eq(ui.connection_label(sqlite.dbms, sqlite.name), "test")
 
-	vim.g.dbs = {
-		test = "sqlite::memory:",
-		prod = "postgresql://host/database",
-	}
-	ui.reset()
-	sqlite = ui.get("test_g:dbs")
-	local postgres = ui.get("prod_g:dbs")
-	h.eq(ui.has_multiple_dbms(), true)
-	h.eq(ui.connection_label(sqlite.dbms, sqlite.name), "sqlite/test")
-	h.eq(ui.connection_label(postgres.dbms, postgres.name), "postgres/prod")
+    vim.g.dbs = {
+        test = "sqlite::memory:",
+        prod = "postgresql://host/database",
+    }
+    ui.reset()
+    sqlite = ui.get("test_g:dbs")
+    local postgres = ui.get("prod_g:dbs")
+    h.eq(ui.has_multiple_dbms(), true)
+    h.eq(ui.connection_label(sqlite.dbms, sqlite.name), "sqlite/test")
+    h.eq(ui.connection_label(postgres.dbms, postgres.name), "postgres/prod")
 
-	restore_globals(previous, directory)
+    restore_globals(previous, directory)
 end)
 
 h.test("scratchpads include saved files and open buffers", function()
-	local previous = {
-		db = vim.g.db,
-		dbs = vim.g.dbs,
-		url = vim.env.LUA_DADBOD_URL,
-		name = vim.env.LUA_DADBOD_NAME,
-		save = config.get().save_location,
-		tmp = config.get().tmp_location,
-	}
-	local directory = vim.fn.tempname()
-	config.setup({
-		save_location = directory .. "/lua-dadbod",
-		tmp_location = directory .. "/queries",
-	})
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    config.setup({
+        save_location = directory .. "/lua-dadbod",
+        tmp_location = directory .. "/queries",
+    })
 
-	vim.g.dbs = { test = "sqlite::memory:" }
-	ui.reset()
+    vim.g.dbs = { test = "sqlite::memory:" }
+    ui.reset()
 
-	local saved_dir = ui.saved_dir(ui.get("test_g:dbs"))
-	util.ensure_dir(saved_dir)
-	vim.fn.writefile({ "select 1;" }, saved_dir .. "/saved.sql")
+    local saved_dir = ui.saved_dir(ui.get("test_g:dbs"))
+    util.ensure_dir(saved_dir)
+    vim.fn.writefile({ "select 1;" }, saved_dir .. "/saved.sql")
 
-	local bufnr = h.ok(query.open("sqlite::memory:", {
-		table = "scratch_users",
-		helper = "List",
-		auto_execute = false,
-	}))
+    local bufnr = h.ok(query.open("sqlite::memory:", {
+        table = "scratch_users",
+        helper = "List",
+        auto_execute = false,
+    }))
 
-	local scratchpads = ui.scratchpads()
-	local by_label = {}
-	for _, item in ipairs(scratchpads) do
-		by_label[item.label] = item
-	end
-	h.ok(by_label.saved, "saved scratchpad not found")
-	h.eq(by_label.saved.kind, "file")
-	h.ok(by_label.scratch_users, "open scratchpad not found")
-	h.eq(by_label.scratch_users.kind, "buffer")
-	h.eq(by_label.scratch_users.unsaved, true)
+    local scratchpads = ui.scratchpads()
+    local by_label = {}
+    for _, item in ipairs(scratchpads) do
+        by_label[item.label] = item
+    end
+    h.ok(by_label.saved, "saved scratchpad not found")
+    h.eq(by_label.saved.kind, "file")
+    h.ok(by_label.scratch_users, "open scratchpad not found")
+    h.eq(by_label.scratch_users.kind, "buffer")
+    h.eq(by_label.scratch_users.unsaved, true)
 
-	vim.api.nvim_buf_delete(bufnr, { force = true })
-	pcall(vim.cmd, "silent! only")
-	restore_globals(previous, directory)
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+    pcall(vim.cmd, "silent! only")
+    restore_globals(previous, directory)
 end)
 
 h.test("query deletes a saved scratchpad", function()
-	local previous = {
-		db = vim.g.db,
-		dbs = vim.g.dbs,
-		url = vim.env.LUA_DADBOD_URL,
-		name = vim.env.LUA_DADBOD_NAME,
-		save = config.get().save_location,
-		tmp = config.get().tmp_location,
-	}
-	local directory = vim.fn.tempname()
-	config.setup({
-		save_location = directory .. "/lua-dadbod",
-		tmp_location = directory .. "/queries",
-	})
-	vim.g.dbs = { test = "sqlite::memory:" }
-	ui.reset()
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    config.setup({
+        save_location = directory .. "/lua-dadbod",
+        tmp_location = directory .. "/queries",
+    })
+    vim.g.dbs = { test = "sqlite::memory:" }
+    ui.reset()
 
-	local saved_dir = ui.saved_dir(ui.get("test_g:dbs"))
-	util.ensure_dir(saved_dir)
-	local path = saved_dir .. "/saved.sql"
-	vim.fn.writefile({ "select 1;" }, path)
+    local saved_dir = ui.saved_dir(ui.get("test_g:dbs"))
+    util.ensure_dir(saved_dir)
+    local path = saved_dir .. "/saved.sql"
+    vim.fn.writefile({ "select 1;" }, path)
 
-	local ok, err = query.delete_scratchpad({ kind = "file", path = path })
-	h.ok(ok, err)
-	h.eq(vim.fn.filereadable(path), 0)
+    local ok, err = query.delete_scratchpad({ kind = "file", path = path })
+    h.ok(ok, err)
+    h.eq(vim.fn.filereadable(path), 0)
 
-	restore_globals(previous, directory)
+    restore_globals(previous, directory)
 end)
 
 h.test("opening a saved query attaches its connection", function()
-	local previous = {
-		db = vim.g.db,
-		dbs = vim.g.dbs,
-		url = vim.env.LUA_DADBOD_URL,
-		name = vim.env.LUA_DADBOD_NAME,
-		save = config.get().save_location,
-		tmp = config.get().tmp_location,
-	}
-	local directory = vim.fn.tempname()
-	config.setup({
-		save_location = directory .. "/lua-dadbod",
-		tmp_location = directory .. "/queries",
-	})
-	vim.g.dbs = { test = "sqlite::memory:" }
-	ui.reset()
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    config.setup({
+        save_location = directory .. "/lua-dadbod",
+        tmp_location = directory .. "/queries",
+    })
+    vim.g.dbs = { test = "sqlite::memory:" }
+    ui.reset()
 
-	local saved_dir = ui.saved_dir(ui.get("test_g:dbs"))
-	util.ensure_dir(saved_dir)
-	local path = saved_dir .. "/saved.sql"
-	vim.fn.writefile({ "select 1;" }, path)
+    local saved_dir = ui.saved_dir(ui.get("test_g:dbs"))
+    util.ensure_dir(saved_dir)
+    local path = saved_dir .. "/saved.sql"
+    vim.fn.writefile({ "select 1;" }, path)
 
-	vim.cmd("edit! " .. vim.fn.fnameescape(path))
-	local bufnr = vim.api.nvim_get_current_buf()
-	local meta = vim.b[bufnr].lua_dadbod
-	h.ok(meta, "saved query was not attached")
-	h.eq(meta.conn, "sqlite::memory:")
-	h.eq(meta.conn_key, "test_g:dbs")
-	h.eq(meta.conn_name, "test")
-	h.eq(meta.dbms, "sqlite")
-	h.eq(meta.source, "saved")
-	h.eq(meta.path, vim.api.nvim_buf_get_name(bufnr))
-	h.eq(ui.active(), "test_g:dbs")
+    vim.cmd("edit! " .. vim.fn.fnameescape(path))
+    local bufnr = vim.api.nvim_get_current_buf()
+    local meta = vim.b[bufnr].lua_dadbod
+    h.ok(meta, "saved query was not attached")
+    h.eq(meta.conn, "sqlite::memory:")
+    h.eq(meta.conn_key, "test_g:dbs")
+    h.eq(meta.conn_name, "test")
+    h.eq(meta.dbms, "sqlite")
+    h.eq(meta.source, "saved")
+    h.eq(meta.path, vim.api.nvim_buf_get_name(bufnr))
+    h.eq(ui.active(), "test_g:dbs")
 
-	vim.api.nvim_buf_delete(bufnr, { force = true })
-	restore_globals(previous, directory)
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+    restore_globals(previous, directory)
 end)
 
 h.test("n creates a scratchpad for the active connection", function()
-	pcall(vim.cmd, "silent! only")
-	local previous = {
-		db = vim.g.db,
-		dbs = vim.g.dbs,
-		url = vim.env.LUA_DADBOD_URL,
-		name = vim.env.LUA_DADBOD_NAME,
-		save = config.get().save_location,
-		tmp = config.get().tmp_location,
-	}
-	local directory = vim.fn.tempname()
-	config.setup({
-		save_location = directory .. "/lua-dadbod",
-		tmp_location = directory .. "/queries",
-	})
-	vim.g.dbs = { test = "sqlite::memory:" }
-	ui.reset()
+    pcall(vim.cmd, "silent! only")
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    config.setup({
+        save_location = directory .. "/lua-dadbod",
+        tmp_location = directory .. "/queries",
+    })
+    vim.g.dbs = { test = "sqlite::memory:" }
+    ui.reset()
 
-	local drawer = require("lua-dadbod.drawer")
-	drawer.open()
-	h.is_nil(ui.active())
+    local drawer = require("lua-dadbod.drawer")
+    drawer.open()
+    h.is_nil(ui.active())
 
-	local function drawer_window_count()
-		local count = 0
-		for _, win in ipairs(vim.api.nvim_list_wins()) do
-			if vim.b[vim.api.nvim_win_get_buf(win)].lua_dadbod_drawer then
-				count = count + 1
-			end
-		end
-		return count
-	end
+    local function drawer_window_count()
+        local count = 0
+        for _, win in ipairs(vim.api.nvim_list_wins()) do
+            if vim.b[vim.api.nvim_win_get_buf(win)].lua_dadbod_drawer then
+                count = count + 1
+            end
+        end
+        return count
+    end
 
-	vim.cmd("split")
-	h.eq(drawer_window_count(), 2)
-	drawer.open()
-	h.eq(drawer_window_count(), 1, "drawer.open kept a duplicate drawer window")
+    vim.cmd("split")
+    h.eq(drawer_window_count(), 2)
+    drawer.open()
+    h.eq(drawer_window_count(), 1, "drawer.open kept a duplicate drawer window")
 
-	local window_count = #vim.api.nvim_list_wins()
+    local window_count = #vim.api.nvim_list_wins()
 
-	local drawer_buf = select(2, drawer.find_win())
-	local function drawer_text()
-		return table.concat(vim.api.nvim_buf_get_lines(drawer_buf, 0, -1, false), "\n")
-	end
-	local function scratchpad_count()
-		return tonumber(drawer_text():match("Scratchpads %((%d+)%)") or 0)
-	end
-	local base_count = scratchpad_count()
+    local drawer_buf = select(2, drawer.find_win())
+    local function drawer_text()
+        return table.concat(vim.api.nvim_buf_get_lines(drawer_buf, 0, -1, false), "\n")
+    end
+    local function scratchpad_count()
+        return tonumber(drawer_text():match("Scratchpads %((%d+)%)") or 0)
+    end
+    local base_count = scratchpad_count()
 
-	drawer.new_scratchpad()
-	h.eq(ui.active(), "test_g:dbs")
-	h.eq(#vim.api.nvim_list_wins(), window_count, "scratchpad opened a new split")
-	h.eq(scratchpad_count(), base_count + 1)
+    drawer.new_scratchpad()
+    h.eq(ui.active(), "test_g:dbs")
+    h.eq(#vim.api.nvim_list_wins(), window_count, "scratchpad opened a new split")
+    h.eq(scratchpad_count(), base_count + 1)
 
-	local query_buf = vim.api.nvim_get_current_buf()
-	local meta = vim.b[query_buf].lua_dadbod
-	h.eq(meta.conn_name, "test")
-	h.eq(meta.dbms, "sqlite")
-	h.eq(meta.source, "scratch")
+    local query_buf = vim.api.nvim_get_current_buf()
+    local meta = vim.b[query_buf].lua_dadbod
+    h.eq(meta.conn_name, "test")
+    h.eq(meta.dbms, "sqlite")
+    h.eq(meta.source, "scratch")
 
-	local drawer_win = drawer.find_win()
-	vim.api.nvim_set_current_win(drawer_win)
-	drawer.new_scratchpad()
-	h.eq(#vim.api.nvim_list_wins(), window_count, "second scratchpad opened a new split")
-	h.eq(scratchpad_count(), base_count + 2)
-	local second_buf = vim.api.nvim_get_current_buf()
-	h.eq(second_buf ~= query_buf, true, "second scratchpad did not replace the first")
+    local drawer_win = drawer.find_win()
+    vim.api.nvim_set_current_win(drawer_win)
+    drawer.new_scratchpad()
+    h.eq(#vim.api.nvim_list_wins(), window_count, "second scratchpad opened a new split")
+    h.eq(scratchpad_count(), base_count + 2)
+    local second_buf = vim.api.nvim_get_current_buf()
+    h.eq(second_buf ~= query_buf, true, "second scratchpad did not replace the first")
 
-	vim.api.nvim_buf_delete(query_buf, { force = true })
-	h.ok(vim.wait(1000, function()
-		return scratchpad_count() == base_count + 1
-	end), "drawer did not refresh after deleting a scratchpad")
+    vim.api.nvim_buf_delete(query_buf, { force = true })
+    h.ok(vim.wait(1000, function()
+        return scratchpad_count() == base_count + 1
+    end), "drawer did not refresh after deleting a scratchpad")
 
-	drawer.close()
-	h.eq(drawer.is_open(), false)
-	vim.api.nvim_buf_delete(second_buf, { force = true })
-	pcall(vim.cmd, "silent! only")
-	restore_globals(previous, directory)
+    drawer.close()
+    h.eq(drawer.is_open(), false)
+    vim.api.nvim_buf_delete(second_buf, { force = true })
+    pcall(vim.cmd, "silent! only")
+    restore_globals(previous, directory)
 end)
 
 h.test("drawer expands a connection and opens a table", function()
-	pcall(vim.cmd, "silent! only")
-	local previous = {
-		db = vim.g.db,
-		dbs = vim.g.dbs,
-		url = vim.env.LUA_DADBOD_URL,
-		name = vim.env.LUA_DADBOD_NAME,
-		save = config.get().save_location,
-		tmp = config.get().tmp_location,
-	}
-	local directory = vim.fn.tempname()
-	util.ensure_dir(directory)
-	config.setup({
-		save_location = directory .. "/lua-dadbod",
-		tmp_location = directory .. "/queries",
-	})
+    pcall(vim.cmd, "silent! only")
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    util.ensure_dir(directory)
+    config.setup({
+        save_location = directory .. "/lua-dadbod",
+        tmp_location = directory .. "/queries",
+    })
 
-	local path = directory .. "/drawer.db"
-	local created = false
-	db.run("sqlite:" .. path, "create table users(id integer); insert into users values (1);", {}, function()
-		created = true
-	end)
-	h.ok(vim.wait(5000, function()
-		return created
-	end), "could not create drawer database")
+    local path = directory .. "/drawer.db"
+    local created = false
+    db.run("sqlite:" .. path, "create table users(id integer); insert into users values (1);", {}, function()
+        created = true
+    end)
+    h.ok(vim.wait(5000, function()
+        return created
+    end), "could not create drawer database")
 
-	vim.g.dbs = { test = "sqlite:" .. path }
-	ui.reset()
+    vim.g.dbs = { test = "sqlite:" .. path }
+    ui.reset()
 
-	local drawer = require("lua-dadbod.drawer")
-	h.eq(drawer.scratchpads_expanded, false)
-	h.eq(drawer.history_expanded, false)
-	drawer.open()
-	local drawer_buf = vim.api.nvim_get_current_buf()
-	h.eq(vim.b[drawer_buf].lua_dadbod_drawer, true)
+    local drawer = require("lua-dadbod.drawer")
+    h.eq(drawer.scratchpads_expanded, false)
+    h.eq(drawer.history_expanded, false)
+    drawer.open()
+    local drawer_buf = vim.api.nvim_get_current_buf()
+    h.eq(vim.b[drawer_buf].lua_dadbod_drawer, true)
 
-	local lines = vim.api.nvim_buf_get_lines(drawer_buf, 0, -1, false)
-	local initial_text = table.concat(lines, "\n")
-	h.matches(initial_text, "test")
-	h.eq(initial_text:find("Add connection", 1, true), nil)
-	h.eq(initial_text:find("No scratchpads", 1, true), nil)
-	h.eq(initial_text:find("No history yet", 1, true), nil)
-	h.eq(vim.fn.hlexists("LuaDadbodDb"), 1)
-	h.eq(vim.fn.hlexists("LuaDadbodTable"), 1)
-	h.eq(vim.fn.hlexists("LuaDadbodScratchpads"), 1)
-	h.eq(vim.fn.hlexists("LuaDadbodHistory"), 1)
+    local lines = vim.api.nvim_buf_get_lines(drawer_buf, 0, -1, false)
+    local initial_text = table.concat(lines, "\n")
+    h.matches(initial_text, "test")
+    h.eq(initial_text:find("Add connection", 1, true), nil)
+    h.eq(initial_text:find("No scratchpads", 1, true), nil)
+    h.eq(initial_text:find("No history yet", 1, true), nil)
+    h.eq(vim.fn.hlexists("LuaDadbodDb"), 1)
+    h.eq(vim.fn.hlexists("LuaDadbodTable"), 1)
+    h.eq(vim.fn.hlexists("LuaDadbodScratchpads"), 1)
+    h.eq(vim.fn.hlexists("LuaDadbodHistory"), 1)
 
-	h.eq(ui.is_activated("test_g:dbs"), false)
-	vim.api.nvim_win_set_cursor(0, { 1, 0 })
-	drawer.select("edit")
-	h.eq(ui.is_activated("test_g:dbs"), true)
+    h.eq(ui.is_activated("test_g:dbs"), false)
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    drawer.select("edit")
+    h.eq(ui.is_activated("test_g:dbs"), true)
 
-	local entry = ui.get("test_g:dbs")
-	h.ok(vim.wait(5000, function()
-		return entry and entry.loaded
-	end), "table metadata did not load")
+    local entry = ui.get("test_g:dbs")
+    h.ok(vim.wait(5000, function()
+        return entry and entry.loaded
+    end), "table metadata did not load")
 
-	local visible_table = false
-	for _, row in ipairs(drawer.rows) do
-		if row.kind == "table" then
-			visible_table = true
-		end
-	end
-	h.eq(visible_table, false)
+    local visible_table = false
+    for _, row in ipairs(drawer.rows) do
+        if row.kind == "table" then
+            visible_table = true
+        end
+    end
+    h.eq(visible_table, false)
 
-	local tables_line
-	for index, row in ipairs(drawer.rows) do
-		if row.kind == "section" and row.section == "tables" then
-			tables_line = index
-			break
-		end
-	end
-	h.ok(tables_line, "Tables section not found")
-	vim.api.nvim_win_set_cursor(0, { tables_line, 0 })
-	drawer.select("edit")
+    local tables_line
+    for index, row in ipairs(drawer.rows) do
+        if row.kind == "section" and row.section == "tables" then
+            tables_line = index
+            break
+        end
+    end
+    h.ok(tables_line, "Tables section not found")
+    vim.api.nvim_win_set_cursor(0, { tables_line, 0 })
+    drawer.select("edit")
 
-	lines = vim.api.nvim_buf_get_lines(drawer_buf, 0, -1, false)
-	local text = table.concat(lines, "\n")
-	h.matches(text, "Tables %(1%)")
-	h.matches(text, "users")
-	h.matches(text, "Scratchpads")
-	h.matches(text, "History")
-	h.eq(text:find("New query", 1, true), nil)
-	h.eq(text:find("Saved queries", 1, true), nil)
+    lines = vim.api.nvim_buf_get_lines(drawer_buf, 0, -1, false)
+    local text = table.concat(lines, "\n")
+    h.matches(text, "Tables %(1%)")
+    h.matches(text, "users")
+    h.matches(text, "Scratchpads")
+    h.matches(text, "History")
+    h.eq(text:find("New query", 1, true), nil)
+    h.eq(text:find("Saved queries", 1, true), nil)
 
-	local table_line
-	for index, row in ipairs(drawer.rows) do
-		if row.kind == "table" and row.table == "users" then
-			table_line = index
-			break
-		end
-	end
-	h.ok(table_line, "table row not found")
+    local table_line
+    for index, row in ipairs(drawer.rows) do
+        if row.kind == "table" and row.table == "users" then
+            table_line = index
+            break
+        end
+    end
+    h.ok(table_line, "table row not found")
 
-	vim.api.nvim_win_set_cursor(0, { table_line, 0 })
-	drawer.select("edit")
-	h.eq(vim.api.nvim_get_current_buf(), drawer_buf)
+    vim.api.nvim_win_set_cursor(0, { table_line, 0 })
+    drawer.select("edit")
+    h.eq(vim.api.nvim_get_current_buf(), drawer_buf)
 
-	h.ok(vim.wait(5000, function()
-		return vim.b[drawer_buf].lua_dadbod_result_buf ~= nil
-	end), "preview did not start")
-	local result_buf = vim.b[drawer_buf].lua_dadbod_result_buf
-	h.ok(vim.wait(5000, function()
-		local result_meta = vim.b[result_buf].lua_dadbod_result
-		return result_meta and result_meta.status ~= "running"
-	end), "preview did not finish")
-	local result_text = table.concat(vim.api.nvim_buf_get_lines(result_buf, 0, -1, false), "\n")
-	h.matches(result_text, "id")
+    h.ok(vim.wait(5000, function()
+        return vim.b[drawer_buf].lua_dadbod_result_buf ~= nil
+    end), "preview did not start")
+    local result_buf = vim.b[drawer_buf].lua_dadbod_result_buf
+    h.ok(vim.wait(5000, function()
+        local result_meta = vim.b[result_buf].lua_dadbod_result
+        return result_meta and result_meta.status ~= "running"
+    end), "preview did not finish")
+    local result_text = table.concat(vim.api.nvim_buf_get_lines(result_buf, 0, -1, false), "\n")
+    h.matches(result_text, "id")
 
-	local drawer_win = drawer.find_win()
-	h.ok(drawer_win, "drawer window disappeared")
-	vim.api.nvim_set_current_win(drawer_win)
-	vim.api.nvim_win_set_cursor(drawer_win, { table_line, 0 })
-	drawer.columns()
-	h.eq(vim.api.nvim_get_current_buf(), drawer_buf)
+    local drawer_win = drawer.find_win()
+    h.ok(drawer_win, "drawer window disappeared")
+    vim.api.nvim_set_current_win(drawer_win)
+    vim.api.nvim_win_set_cursor(drawer_win, { table_line, 0 })
+    drawer.columns()
+    h.eq(vim.api.nvim_get_current_buf(), drawer_buf)
 
-	h.ok(vim.wait(5000, function()
-		local result_meta = vim.b[result_buf].lua_dadbod_result
-		return result_meta and result_meta.status ~= "running"
-	end), "columns preview did not finish")
-	result_text = table.concat(vim.api.nvim_buf_get_lines(result_buf, 0, -1, false), "\n")
-	h.matches(result_text, "name")
+    h.ok(vim.wait(5000, function()
+        local result_meta = vim.b[result_buf].lua_dadbod_result
+        return result_meta and result_meta.status ~= "running"
+    end), "columns preview did not finish")
+    result_text = table.concat(vim.api.nvim_buf_get_lines(result_buf, 0, -1, false), "\n")
+    h.matches(result_text, "name")
 
-	vim.api.nvim_set_current_win(drawer_win)
-	vim.api.nvim_win_set_cursor(drawer_win, { table_line, 0 })
-	drawer.edit()
-	local query_buf = vim.api.nvim_get_current_buf()
-	local meta = vim.b[query_buf].lua_dadbod
-	h.eq(meta.table, "users")
-	h.matches(table.concat(vim.api.nvim_buf_get_lines(query_buf, 0, -1, false), "\n"), "limit 50")
-	drawer.close()
-	h.eq(drawer.is_open(), false)
-	vim.api.nvim_buf_delete(query_buf, { force = true })
+    vim.api.nvim_set_current_win(drawer_win)
+    vim.api.nvim_win_set_cursor(drawer_win, { table_line, 0 })
+    drawer.edit()
+    local query_buf = vim.api.nvim_get_current_buf()
+    local meta = vim.b[query_buf].lua_dadbod
+    h.eq(meta.table, "users")
+    h.matches(table.concat(vim.api.nvim_buf_get_lines(query_buf, 0, -1, false), "\n"), "limit 50")
+    drawer.close()
+    h.eq(drawer.is_open(), false)
+    vim.api.nvim_buf_delete(query_buf, { force = true })
 
-	pcall(vim.cmd, "silent! only")
-	restore_globals(previous, directory)
+    pcall(vim.cmd, "silent! only")
+    restore_globals(previous, directory)
 end)
 
 h.test("drawer loads schemas and schema tables", function()
-	require("lua-dadbod.adapters").register({
-		name = "uitestmeta",
-		binary = "sqlite3",
-		quote = { '"', '"' },
-		filetype = "sql",
-		argv = function()
-			return { "sqlite3", ":memory:" }
-		end,
-		schemas_sql = function()
-			return "select 'public' union all select 'other' order by 1"
-		end,
-		tables_sql = function(ctx)
-			if ctx.schema == "public" then
-				return "select 'users' union all select 'orders' order by 1"
-			end
-			return "select 'other_table'"
-		end,
-	})
+    require("lua-dadbod.adapters").register({
+        name = "uitestmeta",
+        binary = "sqlite3",
+        quote = { '"', '"' },
+        filetype = "sql",
+        argv = function()
+            return { "sqlite3", ":memory:" }
+        end,
+        schemas_sql = function()
+            return "select 'public' union all select 'other' order by 1"
+        end,
+        tables_sql = function(ctx)
+            if ctx.schema == "public" then
+                return "select 'users' union all select 'orders' order by 1"
+            end
+            return "select 'other_table'"
+        end,
+    })
 
-	local previous = {
-		db = vim.g.db,
-		dbs = vim.g.dbs,
-		url = vim.env.LUA_DADBOD_URL,
-		name = vim.env.LUA_DADBOD_NAME,
-		save = config.get().save_location,
-		tmp = config.get().tmp_location,
-	}
-	local directory = vim.fn.tempname()
-	config.setup({
-		save_location = directory .. "/lua-dadbod",
-		tmp_location = directory .. "/queries",
-	})
-	vim.g.dbs = { meta = "uitestmeta:" }
-	ui.reset()
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    config.setup({
+        save_location = directory .. "/lua-dadbod",
+        tmp_location = directory .. "/queries",
+    })
+    vim.g.dbs = { meta = "uitestmeta:" }
+    ui.reset()
 
-	local drawer = require("lua-dadbod.drawer")
-	drawer.open()
-	local conn_line
-	for index, row in ipairs(drawer.rows) do
-		if row.kind == "conn" then
-			conn_line = index
-		end
-	end
-	vim.api.nvim_win_set_cursor(0, { conn_line, 0 })
-	drawer.select("edit")
+    local drawer = require("lua-dadbod.drawer")
+    drawer.open()
+    local conn_line
+    for index, row in ipairs(drawer.rows) do
+        if row.kind == "conn" then
+            conn_line = index
+        end
+    end
+    vim.api.nvim_win_set_cursor(0, { conn_line, 0 })
+    drawer.select("edit")
 
-	local entry = ui.get("meta_g:dbs")
-	h.ok(vim.wait(5000, function()
-		return entry.schemas_loaded
-	end), "schemas did not load")
-	h.eq(entry.schemas, { "other", "public" })
+    local entry = ui.get("meta_g:dbs")
+    h.ok(vim.wait(5000, function()
+        return entry.schemas_loaded
+    end), "schemas did not load")
+    h.eq(entry.schemas, { "other", "public" })
 
-	local schema_line
-	for index, row in ipairs(drawer.rows) do
-		if row.kind == "schema" and row.schema == "public" then
-			schema_line = index
-		end
-	end
-	h.ok(schema_line, "public schema row not found")
-	vim.api.nvim_win_set_cursor(0, { schema_line, 0 })
-	drawer.select("edit")
+    local schema_line
+    for index, row in ipairs(drawer.rows) do
+        if row.kind == "schema" and row.schema == "public" then
+            schema_line = index
+        end
+    end
+    h.ok(schema_line, "public schema row not found")
+    vim.api.nvim_win_set_cursor(0, { schema_line, 0 })
+    drawer.select("edit")
 
-	local state = entry.schema_state.public
-	h.ok(vim.wait(5000, function()
-		return state.loaded
-	end), "schema tables did not load")
-	h.eq(state.tables, { "orders", "users" })
+    local state = entry.schema_state.public
+    h.ok(vim.wait(5000, function()
+        return state.loaded
+    end), "schema tables did not load")
+    h.eq(state.tables, { "orders", "users" })
 
-	local tables_line
-	for index, row in ipairs(drawer.rows) do
-		if row.kind == "section" and row.section == "tables" and row.schema == "public" then
-			tables_line = index
-		end
-	end
-	h.ok(tables_line, "schema Tables section not found")
-	vim.api.nvim_win_set_cursor(0, { tables_line, 0 })
-	drawer.select("edit")
+    local tables_line
+    for index, row in ipairs(drawer.rows) do
+        if row.kind == "section" and row.section == "tables" and row.schema == "public" then
+            tables_line = index
+        end
+    end
+    h.ok(tables_line, "schema Tables section not found")
+    vim.api.nvim_win_set_cursor(0, { tables_line, 0 })
+    drawer.select("edit")
 
-	local table_rows = {}
-	for _, row in ipairs(drawer.rows) do
-		if row.kind == "table" then
-			table_rows[#table_rows + 1] = row
-		end
-	end
-	h.eq(#table_rows, 2)
-	h.eq(table_rows[1].table, "orders")
-	h.eq(table_rows[2].table, "users")
-	h.eq(table_rows[1].schema, "public")
-	h.eq(table_rows[1].level, 4)
+    local table_rows = {}
+    for _, row in ipairs(drawer.rows) do
+        if row.kind == "table" then
+            table_rows[#table_rows + 1] = row
+        end
+    end
+    h.eq(#table_rows, 2)
+    h.eq(table_rows[1].table, "orders")
+    h.eq(table_rows[2].table, "users")
+    h.eq(table_rows[1].schema, "public")
+    h.eq(table_rows[1].level, 4)
 
-	drawer.close()
-	pcall(vim.cmd, "silent! only")
-	restore_globals(previous, directory)
+    drawer.close()
+    pcall(vim.cmd, "silent! only")
+    restore_globals(previous, directory)
 end)
 
 h.test("failed connections collapse and stay inactive", function()
-	local previous = {
-		db = vim.g.db,
-		dbs = vim.g.dbs,
-		url = vim.env.LUA_DADBOD_URL,
-		name = vim.env.LUA_DADBOD_NAME,
-		save = config.get().save_location,
-		tmp = config.get().tmp_location,
-	}
-	local directory = vim.fn.tempname()
-	config.setup({
-		save_location = directory .. "/lua-dadbod",
-		tmp_location = directory .. "/queries",
-	})
-	vim.g.dbs = { broken = "sqlite:" .. directory .. "/missing/test.db" }
-	ui.reset()
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    config.setup({
+        save_location = directory .. "/lua-dadbod",
+        tmp_location = directory .. "/queries",
+    })
+    vim.g.dbs = { broken = "sqlite:" .. directory .. "/missing/test.db" }
+    ui.reset()
 
-	local notices = {}
-	local previous_notify = vim.notify
-	vim.notify = function(message, level)
-		notices[#notices + 1] = { message, level }
-	end
+    local notices = {}
+    local previous_notify = vim.notify
+    vim.notify = function(message, level)
+        notices[#notices + 1] = { message, level }
+    end
 
-	local drawer = require("lua-dadbod.drawer")
-	drawer.open()
-	local conn_line
-	for index, row in ipairs(drawer.rows) do
-		if row.kind == "conn" then
-			conn_line = index
-		end
-	end
-	vim.api.nvim_win_set_cursor(0, { conn_line, 0 })
-	drawer.select("edit")
+    local drawer = require("lua-dadbod.drawer")
+    drawer.open()
+    local conn_line
+    for index, row in ipairs(drawer.rows) do
+        if row.kind == "conn" then
+            conn_line = index
+        end
+    end
+    vim.api.nvim_win_set_cursor(0, { conn_line, 0 })
+    drawer.select("edit")
 
-	local entry = ui.get("broken_g:dbs")
-	local loaded = vim.wait(5000, function()
-		return entry.loaded
-	end)
+    local entry = ui.get("broken_g:dbs")
+    local loaded = vim.wait(5000, function()
+        return entry.loaded
+    end)
 
-	local drawer_win = drawer.find_win()
-	vim.api.nvim_set_current_win(drawer_win)
-	vim.api.nvim_win_set_cursor(0, { conn_line, 0 })
-	drawer.select("edit")
-	vim.notify = previous_notify
+    local drawer_win = drawer.find_win()
+    vim.api.nvim_set_current_win(drawer_win)
+    vim.api.nvim_win_set_cursor(0, { conn_line, 0 })
+    drawer.select("edit")
+    vim.notify = previous_notify
 
-	h.ok(loaded, "metadata did not finish")
-	h.ok(entry.error)
-	h.eq(entry.expanded, false)
-	h.eq(ui.is_activated(entry.key), false)
-	h.eq(ui.active(), nil)
+    h.ok(loaded, "metadata did not finish")
+    h.ok(entry.error)
+    h.eq(entry.expanded, false)
+    h.eq(ui.is_activated(entry.key), false)
+    h.eq(ui.active(), nil)
 
-	local notified = false
-	for _, notice in ipairs(notices) do
-		if notice[2] == vim.log.levels.ERROR and notice[1]:find(entry.error, 1, true) then
-			notified = true
-		end
-	end
-	h.eq(notified, true)
+    local notified = false
+    for _, notice in ipairs(notices) do
+        if notice[2] == vim.log.levels.ERROR and notice[1]:find(entry.error, 1, true) then
+            notified = true
+        end
+    end
+    h.eq(notified, true)
 
-	drawer.close()
-	pcall(vim.cmd, "silent! only")
-	restore_globals(previous, directory)
+    drawer.close()
+    pcall(vim.cmd, "silent! only")
+    restore_globals(previous, directory)
 end)
 
 h.test("open_split from a float splits the window below it", function()
-	pcall(vim.cmd, "silent! only")
-	local base_win = vim.api.nvim_get_current_win()
-	local float_buf = vim.api.nvim_create_buf(false, true)
-	local float_win = vim.api.nvim_open_win(float_buf, true, {
-		relative = "editor",
-		row = 2,
-		col = 2,
-		width = 20,
-		height = 5,
-	})
-	local new_buf = vim.api.nvim_create_buf(false, true)
+    pcall(vim.cmd, "silent! only")
+    local base_win = vim.api.nvim_get_current_win()
+    local float_buf = vim.api.nvim_create_buf(false, true)
+    local float_win = vim.api.nvim_open_win(float_buf, true, {
+        relative = "editor",
+        row = 2,
+        col = 2,
+        width = 20,
+        height = 5,
+    })
+    local new_buf = vim.api.nvim_create_buf(false, true)
 
-	local target = util.open_split({ bufnr = new_buf, restore = true })
-	h.ok(target, "no window was opened")
-	h.eq(vim.api.nvim_win_get_buf(target), new_buf)
-	h.eq(vim.api.nvim_get_current_win(), float_win)
+    local target = util.open_split({ bufnr = new_buf, restore = true })
+    h.ok(target, "no window was opened")
+    h.eq(vim.api.nvim_win_get_buf(target), new_buf)
+    h.eq(vim.api.nvim_get_current_win(), float_win)
 
-	local base_pos = vim.api.nvim_win_get_position(base_win)
-	local target_pos = vim.api.nvim_win_get_position(target)
-	h.eq(target_pos[2], base_pos[2], "result opened beside the window, not below")
-	h.eq(target_pos[1] > base_pos[1], true, "result opened above the window")
-	h.eq(vim.api.nvim_win_get_width(target), vim.api.nvim_win_get_width(base_win))
+    local base_pos = vim.api.nvim_win_get_position(base_win)
+    local target_pos = vim.api.nvim_win_get_position(target)
+    h.eq(target_pos[2], base_pos[2], "result opened beside the window, not below")
+    h.eq(target_pos[1] > base_pos[1], true, "result opened above the window")
+    h.eq(vim.api.nvim_win_get_width(target), vim.api.nvim_win_get_width(base_win))
 
-	pcall(vim.api.nvim_win_close, float_win, true)
-	pcall(vim.api.nvim_buf_delete, new_buf, { force = true })
-	pcall(vim.cmd, "silent! only")
+    pcall(vim.api.nvim_win_close, float_win, true)
+    pcall(vim.api.nvim_buf_delete, new_buf, { force = true })
+    pcall(vim.cmd, "silent! only")
 end)
 
 h.test("global mappings follow setup", function()
-	local lua_dadbod = require("lua-dadbod")
-	lua_dadbod.setup({ mappings = { global = true } })
-	h.eq(vim.fn.maparg("<leader>Do", "n") ~= "", true)
+    local lua_dadbod = require("lua-dadbod")
+    lua_dadbod.setup({ mappings = { global = true } })
+    h.eq(vim.fn.maparg("<leader>Do", "n") ~= "", true)
 
-	lua_dadbod.setup({ mappings = { global = false } })
-	h.eq(vim.fn.maparg("<leader>Do", "n"), "")
+    lua_dadbod.setup({ mappings = { global = false } })
+    h.eq(vim.fn.maparg("<leader>Do", "n"), "")
 
-	lua_dadbod.setup()
+    lua_dadbod.setup()
 end)
 
 h.test("lua-dadbod commands exist", function()
-	for _, name in ipairs({
-		"LuaDadbod",
-		"LuaDadbodToggle",
-		"LuaDadbodClose",
-		"LuaDadbodAddConnection",
-		"LuaDadbodFindBuffer",
-		"LuaDadbodRenameBuffer",
-		"LuaDadbodClearCache",
-		"LuaDadbodRefresh",
-	}) do
-		h.eq(vim.fn.exists(":" .. name), 2, name .. " is not registered")
-	end
+    for _, name in ipairs({
+        "LuaDadbod",
+        "LuaDadbodToggle",
+        "LuaDadbodClose",
+        "LuaDadbodAddConnection",
+        "LuaDadbodFindBuffer",
+        "LuaDadbodRenameBuffer",
+        "LuaDadbodClearCache",
+        "LuaDadbodRefresh",
+    }) do
+        h.eq(vim.fn.exists(":" .. name), 2, name .. " is not registered")
+    end
 end)
