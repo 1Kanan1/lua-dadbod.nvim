@@ -184,6 +184,38 @@ h.test("connection labels add the dbms only for multiple dbms", function()
     restore_globals(previous, directory)
 end)
 
+h.test("saved query folders use the connection name", function()
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    config.setup({ save_location = directory .. "/lua-dadbod" })
+
+    vim.g.dbs = { test = "sqlite::memory:" }
+    ui.reset()
+    h.matches(ui.saved_dir(ui.get("test_g:dbs")), "/queries/test$")
+
+    util.write_json(directory .. "/lua-dadbod/connections.json", {
+        { name = "test", url = "sqlite::memory:" },
+    })
+    ui.reset()
+    local folders = {}
+    for _, entry in ipairs(ui.connections()) do
+        if entry.name == "test" then
+            folders[#folders + 1] = ui.saved_folder(entry)
+        end
+    end
+    h.eq(#folders, 2)
+    h.eq(folders[1] ~= folders[2], true, "same-named connections shared a folder")
+
+    restore_globals(previous, directory)
+end)
+
 h.test("scratchpads include saved files and open buffers", function()
     local previous = {
         db = vim.g.db,
@@ -298,7 +330,7 @@ end)
 h.test("reopen a saved query in a new process", function()
     local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:gsub("^@", ""), ":p:h:h")
     local directory = vim.fn.tempname()
-    local path = directory .. "/lua-dadbod/queries/" .. util.slug("test_g:dbs") .. "/saved.sql"
+    local path = directory .. "/lua-dadbod/queries/" .. util.slug("test") .. "/saved.sql"
     util.ensure_dir(vim.fs.dirname(path))
     vim.fn.writefile({ "select 1;" }, path)
 

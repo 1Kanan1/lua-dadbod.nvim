@@ -393,7 +393,7 @@ Default global maps, installed by `setup()`:
   strings, quoted identifiers, comments, and PostgreSQL dollar quotes. Cursor on a
   blank or comment-only line runs the previous statement, then the next.
 - `<Leader>W` saves a copy under
-  `<save_location>/queries/<slug(connection-key)>/<name>.sql` using
+  `<save_location>/queries/<folder>/<name>.sql` using
   `:noautocmd saveas`,
   then marks the buffer as saved.
 - `<Leader>E` edits bind parameters through `vim.ui.select`: choose a
@@ -402,7 +402,7 @@ Default global maps, installed by `setup()`:
   ignoring matches inside single quotes, prompted once, cached in
   `b:lua_dadbod.bind`, and substituted with quoting for numeric, boolean, already
   quoted, and string values.
-- Opening a file under `queries/<slug(connection-key)>/` sets the connection from the folder
+- Opening a file under `queries/<folder>/` sets the connection from the folder
   and marks it saved. No filename guessing beyond that.
 - Saved queries can be renamed or deleted from the drawer. Open buffers follow
   the rename or are wiped on delete.
@@ -820,7 +820,7 @@ global mappings.
 Implemented:
 
 - Save-as prompts for a name and writes under
-  `<save_location>/queries/<slug(connection-key)>/<name>.sql`. Saving under a
+  `<save_location>/queries/<folder>/<name>.sql`. Saving under a
   connection folder is what marks the file as a saved query; reopening it
   attaches the connection from the folder.
 - Rename updates the file, the buffer name, and `meta.path`. Delete removes the

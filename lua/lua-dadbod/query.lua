@@ -520,7 +520,10 @@ function M.save_as(bufnr, name)
     end
 
     local connection_key = meta.conn_key or meta.conn_name or "db"
-    local directory = vim.fn.expand(config.get().save_location) .. "/queries/" .. util.slug(connection_key)
+    local ui = require("lua-dadbod.ui")
+    local entry = ui.get(meta.conn_key)
+    local folder = entry and ui.saved_folder(entry) or ui.saved_folder(connection_key)
+    local directory = vim.fn.expand(config.get().save_location) .. "/queries/" .. folder
     util.ensure_dir(directory)
 
     local path = directory .. "/" .. name

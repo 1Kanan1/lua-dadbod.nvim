@@ -420,8 +420,21 @@ function M.clear_meta()
     end
 end
 
+function M.saved_folder(entry)
+    if type(entry) ~= "table" then
+        return util.slug(entry or "")
+    end
+    local base = util.slug(entry.name)
+    for _, other in ipairs(M.connections()) do
+        if other.key ~= entry.key and util.slug(other.name) == base then
+            return base .. "-" .. util.slug(other.source)
+        end
+    end
+    return base
+end
+
 function M.saved_dir(entry)
-    return vim.fn.expand(config.get().save_location) .. "/queries/" .. util.slug(entry.key)
+    return vim.fn.expand(config.get().save_location) .. "/queries/" .. M.saved_folder(entry)
 end
 
 function M.saved_queries(entry)
