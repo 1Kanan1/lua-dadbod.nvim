@@ -394,6 +394,20 @@ h.test("remove broken sqlcomplete insert maps", function()
     vim.api.nvim_buf_delete(bufnr, { force = true })
 end)
 
+h.test("keep sqlcomplete maps when the engine is loaded", function()
+    vim.cmd("runtime autoload/sqlcomplete.vim")
+    h.eq(vim.fn.exists("*sqlcomplete#DrillIntoTable"), 1)
+
+    local bufnr = vim.api.nvim_create_buf(true, false)
+    vim.api.nvim_set_current_buf(bufnr)
+    vim.keymap.set("i", "<Right>", "<C-R>=sqlcomplete#DrillIntoTable()<CR>", { buffer = bufnr })
+    h.ok(query.attach("sqlite::memory:", bufnr, {}))
+    h.eq(vim.fn.maparg("<Right>", "i") ~= "", true, "working sqlcomplete map was removed")
+
+    vim.g.loaded_sql_completion = nil
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end)
+
 h.test("n creates a scratchpad for the active connection", function()
     pcall(vim.cmd, "silent! only")
     local previous = {

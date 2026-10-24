@@ -257,6 +257,9 @@ local function remove_broken_sql_maps(bufnr)
     if vim.g.loaded_sql_completion == nil then
         return
     end
+    if vim.fn.exists("*sqlcomplete#DrillIntoTable") == 1 then
+        return
+    end
     for _, map in ipairs(vim.api.nvim_buf_get_keymap(bufnr, "i")) do
         if map.rhs and map.rhs:find("sqlcomplete#", 1, true) then
             pcall(vim.keymap.del, "i", map.lhs, { buffer = bufnr })

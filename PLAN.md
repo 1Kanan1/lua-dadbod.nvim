@@ -830,9 +830,9 @@ Implemented:
 - `BufWritePost` runs the whole buffer when `execute_on_save` is true and does
   nothing when false. The default is false. Scratchpads refresh after save and
   after `BufDelete` or `BufWipeout`.
-- Insert-mode `sqlcomplete#` mappings are removed from query buffers when
-  `g:loaded_sql_completion` is set, so `<Right>` and `<Left>` move the cursor
-  instead of calling functions Neovim did not load.
+- Insert-mode `sqlcomplete#` mappings are removed from query buffers only when
+  `g:loaded_sql_completion` is set and the function is missing, so `<Right>` and
+  `<Left>` keep working when Neovim's SQL completion loaded normally.
 - `statusline(opts)` returns `<prefix><name> > <schema> > <table>` for attached
   buffers, honors `prefix`, `separator`, and `show`, and returns `""` for other
   buffers.
