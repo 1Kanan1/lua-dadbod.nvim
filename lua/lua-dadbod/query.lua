@@ -253,10 +253,22 @@ local function refresh_drawer()
     end)
 end
 
+local function remove_broken_sql_maps(bufnr)
+    if vim.g.loaded_sql_completion == nil then
+        return
+    end
+    for _, map in ipairs(vim.api.nvim_buf_get_keymap(bufnr, "i")) do
+        if map.rhs and map.rhs:find("sqlcomplete#", 1, true) then
+            pcall(vim.keymap.del, "i", map.lhs, { buffer = bufnr })
+        end
+    end
+end
+
 local function setup_buffer(bufnr, adapter)
     vim.bo[bufnr].swapfile = false
     vim.bo[bufnr].buflisted = true
     vim.bo[bufnr].filetype = adapter.filetype or "sql"
+    remove_broken_sql_maps(bufnr)
 
     if config.mappings_enabled("query") then
         vim.keymap.set("n", "<Leader>S", function()

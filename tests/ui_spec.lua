@@ -347,6 +347,21 @@ h.test("statusline reports the query context", function()
     vim.api.nvim_buf_delete(bufnr, { force = true })
 end)
 
+h.test("remove broken sqlcomplete insert maps", function()
+    vim.g.loaded_sql_completion = true
+    local bufnr = vim.api.nvim_create_buf(true, false)
+    vim.api.nvim_set_current_buf(bufnr)
+    vim.keymap.set("i", "<Right>", "<C-R>=sqlcomplete#DrillIntoTable()<CR>", { buffer = bufnr })
+    vim.keymap.set("i", "<C-C>a", "<Cmd>echo 1<CR>", { buffer = bufnr })
+
+    h.ok(query.attach("sqlite::memory:", bufnr, {}))
+    h.eq(vim.fn.maparg("<Right>", "i"), "")
+    h.eq(vim.fn.maparg("<C-C>a", "i") ~= "", true)
+
+    vim.g.loaded_sql_completion = nil
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end)
+
 h.test("n creates a scratchpad for the active connection", function()
     pcall(vim.cmd, "silent! only")
     local previous = {

@@ -377,12 +377,16 @@ Default global maps, installed by `setup()`:
 
 ### Query buffers
 
-- Created as real files under `tmp_location`, so `:w` works and
-  `BufWritePost` can run the query.
+- Named after a real path under `tmp_location`; the file is created on the
+  first `:w`, so a new scratchpad writes normally instead of failing with E13.
 - Name: `<slug(conn)>-<table>-<helper>-<timestamp>.sql`.
 - `b:lua_dadbod = { conn, conn_key, conn_name, dbms, url, source, schema, table, helper, bind, path }`.
 - The buffer keeps `filetype=sql`, so Treesitter and LSP keep working.
-- `BufWritePost` runs the whole buffer when `execute_on_save = true`.
+- Insert-mode mappings that reference `sqlcomplete#` are removed when
+  `g:loaded_sql_completion` is set, because Neovim's `autoload/sqlcomplete.vim`
+  exits early in that case and the functions do not exist.
+- `BufWritePost` runs the whole buffer when `execute_on_save = true`
+  (default `false`).
 - `<Leader>S` runs the whole buffer; in visual mode it runs the selection.
 - `<CR>` in normal mode runs the statement under the cursor; in visual mode it
   runs the selection. Boundaries are top-level semicolons, ignoring semicolons in
@@ -456,7 +460,7 @@ require("lua-dadbod").setup({
   tmp_location = vim.fn.stdpath("cache") .. "/lua-dadbod/queries",
   win = { width = 40, position = "left" },
   default_query = "select * from {optional_schema}{table} limit 50;",
-  execute_on_save = true,
+  execute_on_save = false,
   auto_execute_helpers = true,
   bind_param_pattern = ":%w+",
   table_helpers = {},
@@ -824,8 +828,11 @@ Implemented:
 - Attach via `:LuaDadbodFindBuffer` gives an existing buffer the query
   mappings, connection metadata, and execute-on-save behavior.
 - `BufWritePost` runs the whole buffer when `execute_on_save` is true and does
-  nothing when false. Scratchpads refresh after save and after `BufDelete` or
-  `BufWipeout`.
+  nothing when false. The default is false. Scratchpads refresh after save and
+  after `BufDelete` or `BufWipeout`.
+- Insert-mode `sqlcomplete#` mappings are removed from query buffers when
+  `g:loaded_sql_completion` is set, so `<Right>` and `<Left>` move the cursor
+  instead of calling functions Neovim did not load.
 - `statusline(opts)` returns `<prefix><name> > <schema> > <table>` for attached
   buffers, honors `prefix`, `separator`, and `show`, and returns `""` for other
   buffers.

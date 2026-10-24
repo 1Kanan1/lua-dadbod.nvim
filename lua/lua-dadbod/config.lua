@@ -8,7 +8,7 @@ local defaults = {
         position = "left",
     },
     default_query = "select * from {optional_schema}{table} limit 50;",
-    execute_on_save = true,
+    execute_on_save = false,
     auto_execute_helpers = true,
     bind_param_pattern = ":%w+",
     table_helpers = {},
