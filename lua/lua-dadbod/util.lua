@@ -118,6 +118,28 @@ local function window_to_the_right()
     return win
 end
 
+function M.drop_empty_buffer(bufnr)
+    if not vim.api.nvim_buf_is_valid(bufnr) then
+        return
+    end
+    if #vim.fn.win_findbuf(bufnr) > 0 then
+        return
+    end
+    if vim.api.nvim_buf_get_name(bufnr) ~= "" then
+        return
+    end
+    if not vim.api.nvim_get_option_value("buflisted", { buf = bufnr }) then
+        return
+    end
+    if vim.api.nvim_get_option_value("modified", { buf = bufnr }) then
+        return
+    end
+    if vim.api.nvim_get_option_value("buftype", { buf = bufnr }) ~= "" then
+        return
+    end
+    pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
+end
+
 function M.open_split(opts)
     opts = opts or {}
     local current = vim.api.nvim_get_current_win()

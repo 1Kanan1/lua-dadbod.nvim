@@ -142,6 +142,23 @@ local function close_duplicates(win)
     end
 end
 
+vim.api.nvim_create_autocmd("BufWinEnter", {
+    group = vim.api.nvim_create_augroup("lua_dadbod_drawer_guard", { clear = true }),
+    callback = function(args)
+        if not vim.b[args.buf].lua_dadbod_drawer then
+            return
+        end
+
+        local win = vim.api.nvim_get_current_win()
+        for _, other in ipairs(drawer_windows()) do
+            if other ~= win then
+                vim.api.nvim_win_set_buf(win, vim.api.nvim_create_buf(true, false))
+                return
+            end
+        end
+    end,
+})
+
 function M.open()
     setup_highlights()
     local win, buf = M.find_win()

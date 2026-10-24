@@ -339,8 +339,10 @@ function M.open(connection, opts)
     end
 
     util.open_split({ split = opts.split, reuse = true })
+    local previous = vim.api.nvim_win_get_buf(0)
     local bufnr = vim.api.nvim_create_buf(true, false)
     vim.api.nvim_win_set_buf(0, bufnr)
+    util.drop_empty_buffer(previous)
     vim.api.nvim_buf_set_name(bufnr, path)
     setup_buffer(bufnr, ctx.adapter)
 
@@ -397,9 +399,11 @@ function M.open_path(path, connection, opts)
     end
 
     util.open_split({ split = opts.split, reuse = true })
+    local previous = vim.api.nvim_win_get_buf(0)
     local bufnr = vim.fn.bufadd(path)
     vim.fn.bufload(bufnr)
     vim.api.nvim_win_set_buf(0, bufnr)
+    util.drop_empty_buffer(previous)
 
     apply_connection_meta(bufnr, ctx, {
         source = "saved",
@@ -425,7 +429,9 @@ function M.focus(bufnr, opts)
     end
 
     util.open_split({ split = opts.split, reuse = true })
+    local previous = vim.api.nvim_win_get_buf(0)
     vim.api.nvim_win_set_buf(0, bufnr)
+    util.drop_empty_buffer(previous)
     return bufnr
 end
 

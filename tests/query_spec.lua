@@ -45,6 +45,15 @@ h.test("resolve bind values without prompting", function()
     h.eq(text, "select 1")
 end)
 
+h.test("opening a query drops an empty placeholder", function()
+    local placeholder = vim.api.nvim_create_buf(true, false)
+    vim.api.nvim_set_current_buf(placeholder)
+    local bufnr = h.ok(query.open("sqlite::memory:", { auto_execute = false }))
+    h.eq(vim.api.nvim_buf_is_valid(placeholder), false, "placeholder buffer was not dropped")
+    h.eq(vim.api.nvim_get_current_buf(), bufnr)
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end)
+
 h.test("save a query to disk", function()
     local config = require("lua-dadbod.config")
     local previous = config.get().save_location

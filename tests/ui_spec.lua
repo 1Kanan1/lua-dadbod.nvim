@@ -814,6 +814,45 @@ h.test("open_split from a float splits the window below it", function()
     pcall(vim.cmd, "silent! only")
 end)
 
+h.test("a window falling back to the drawer buffer is detached", function()
+    pcall(vim.cmd, "silent! only")
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    config.setup({
+        save_location = directory .. "/lua-dadbod",
+        tmp_location = directory .. "/queries",
+    })
+    vim.g.dbs = { test = "sqlite::memory:" }
+    ui.reset()
+
+    local drawer = require("lua-dadbod.drawer")
+    drawer.open()
+    local drawer_win, drawer_buf = drawer.find_win()
+    local other_win
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+        if win ~= drawer_win then
+            other_win = win
+        end
+    end
+    h.ok(other_win, "no window next to the drawer")
+
+    vim.api.nvim_win_set_buf(other_win, drawer_buf)
+    h.eq(vim.api.nvim_win_get_buf(other_win) ~= drawer_buf, true, "duplicate drawer window remained")
+    h.eq(#vim.fn.win_findbuf(drawer_buf), 1)
+    h.eq(drawer.is_open(), true)
+
+    drawer.close()
+    pcall(vim.cmd, "silent! only")
+    restore_globals(previous, directory)
+end)
+
 h.test("global mappings follow setup", function()
     local lua_dadbod = require("lua-dadbod")
     lua_dadbod.setup({ mappings = { global = true } })
