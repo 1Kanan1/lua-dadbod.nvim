@@ -1066,11 +1066,11 @@ function M.toggle_details()
 end
 
 function M.help()
-    local parts = {}
+    local entries = {}
     for _, item in ipairs(keymaps) do
-        parts[#parts + 1] = item[1] .. " " .. item[3]
+        entries[#entries + 1] = { item[1], item[3] }
     end
-    util.notify(table.concat(parts, ", "))
+    require("lua-dadbod.help").open("lua-dadbod keys", entries)
 end
 
 return M
