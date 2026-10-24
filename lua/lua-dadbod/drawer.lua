@@ -13,19 +13,19 @@ local M = {
 }
 
 local keymaps = {
-    { "<CR>", function() M.select("edit") end, "preview/open" },
-    { "o", function() M.select("edit") end, "preview/open" },
-    { "S", function() M.select("vsplit") end, "open in vsplit" },
+    { "<CR>", function() M.select("edit") end, "open row (table: preview)" },
+    { "o", function() M.select("edit") end, "open row (table: preview)" },
+    { "S", function() M.select("vsplit") end, "open row in vsplit" },
     { "n", function() M.new_scratchpad() end, "new scratchpad" },
-    { "e", function() M.edit() end, "edit table query" },
-    { "C", function() M.columns() end, "columns" },
+    { "e", function() M.edit() end, "edit table List query" },
+    { "C", function() M.columns() end, "preview table columns" },
     { "A", function() M.add_connection() end, "add connection" },
-    { "r", function() M.rename() end, "rename" },
-    { "d", function() M.delete() end, "delete" },
-    { "R", function() M.refresh() end, "refresh" },
-    { "H", function() M.toggle_details() end, "details" },
-    { "q", function() M.close() end, "close" },
-    { "?", function() M.help() end, "help" },
+    { "r", function() M.rename() end, "rename saved scratchpad" },
+    { "d", function() M.delete() end, "delete scratchpad or connection" },
+    { "R", function() M.refresh() end, "refresh metadata" },
+    { "H", function() M.toggle_details() end, "toggle source details" },
+    { "q", function() M.close() end, "close drawer" },
+    { "?", function() M.help() end, "toggle this help" },
 }
 
 local highlight_ns = vim.api.nvim_create_namespace("lua_dadbod_drawer")
@@ -1066,10 +1066,21 @@ function M.toggle_details()
 end
 
 function M.help()
-    local entries = {}
+    local entries = { { section = "Drawer" } }
     for _, item in ipairs(keymaps) do
         entries[#entries + 1] = { item[1], item[3] }
     end
+
+    entries[#entries + 1] = { section = "Query buffer" }
+    for _, item in ipairs({
+        { "<CR>", "run statement under cursor (visual: selection)" },
+        { "<Leader>S", "run whole buffer (visual: selection)" },
+        { "<Leader>W", "save as a named query" },
+        { "<Leader>E", "edit bind parameters" },
+    }) do
+        entries[#entries + 1] = item
+    end
+
     require("lua-dadbod.help").open("lua-dadbod keys", entries)
 end
 

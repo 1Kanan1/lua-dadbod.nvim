@@ -855,12 +855,19 @@ end)
 
 h.test("help opens a floating key guide", function()
     local help = require("lua-dadbod.help")
-    local win = help.open("test keys", { { "a", "first action" }, { "<CR>", "second action" } })
+    local win = help.open("test keys", {
+        { section = "First" },
+        { "a", "first action" },
+        { section = "Second" },
+        { "<CR>", "second action" },
+    })
     h.ok(win, "no help window")
     h.eq(vim.api.nvim_win_get_config(win).relative, "editor")
     h.eq(vim.api.nvim_win_get_buf(win), help.buf)
     local text = table.concat(vim.api.nvim_buf_get_lines(help.buf, 0, -1, false), "\n")
+    h.matches(text, "First")
     h.matches(text, "first action")
+    h.matches(text, "Second")
     h.matches(text, "second action")
 
     help.close()
@@ -873,8 +880,11 @@ h.test("drawer help lists its keymaps", function()
     require("lua-dadbod.drawer").help()
     h.ok(help.win, "help window did not open")
     local text = table.concat(vim.api.nvim_buf_get_lines(help.buf, 0, -1, false), "\n")
+    h.matches(text, "Drawer")
     h.matches(text, "new scratchpad")
-    h.matches(text, "preview/open")
+    h.matches(text, "open row %(table: preview%)")
+    h.matches(text, "Query buffer")
+    h.matches(text, "run statement under cursor")
     help.close()
 end)
 

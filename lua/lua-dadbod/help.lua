@@ -22,19 +22,34 @@ function M.open(title, entries)
 
     local key_width = 0
     for _, entry in ipairs(entries) do
-        key_width = math.max(key_width, vim.fn.strdisplaywidth(entry[1]))
+        if not entry.section then
+            key_width = math.max(key_width, vim.fn.strdisplaywidth(entry[1]))
+        end
     end
 
     local lines = {}
+    local keys = {}
+    local sections = {}
     local width = vim.fn.strdisplaywidth(title or "")
+
     for _, entry in ipairs(entries) do
-        local line = string.format("%-" .. key_width .. "s  %s", entry[1], entry[2])
-        lines[#lines + 1] = line
-        width = math.max(width, vim.fn.strdisplaywidth(line))
+        if entry.section then
+            if #lines > 0 then
+                lines[#lines + 1] = ""
+            end
+            lines[#lines + 1] = entry.section
+            sections[#lines] = true
+            width = math.max(width, vim.fn.strdisplaywidth(entry.section))
+        else
+            local line = string.format("%-" .. key_width .. "s  %s", entry[1], entry[2])
+            lines[#lines + 1] = line
+            keys[#lines] = entry[1]
+            width = math.max(width, vim.fn.strdisplaywidth(line))
+        end
     end
 
     width = math.min(width + 2, math.max(20, vim.o.columns - 8))
-    local height = math.min(#lines, math.max(5, vim.o.lines - 8))
+    local height = math.min(#lines, math.max(5, vim.o.lines - 5))
 
     local buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
@@ -44,10 +59,10 @@ function M.open(title, entries)
 
     vim.api.nvim_set_hl(0, "LuaDadbodHelpKey", { link = "Identifier", default = true })
     vim.api.nvim_set_hl(0, "LuaDadbodHelpDesc", { link = "Comment", default = true })
+    vim.api.nvim_set_hl(0, "LuaDadbodHelpSection", { link = "Title", default = true })
 
     local namespace = vim.api.nvim_create_namespace("lua_dadbod_help")
-    for index, entry in ipairs(entries) do
-        local key = entry[1]
+    for index, key in pairs(keys) do
         vim.api.nvim_buf_set_extmark(buf, namespace, index - 1, 0, {
             end_col = #key,
             hl_group = "LuaDadbodHelpKey",
@@ -55,6 +70,12 @@ function M.open(title, entries)
         vim.api.nvim_buf_set_extmark(buf, namespace, index - 1, key_width + 2, {
             end_col = #lines[index],
             hl_group = "LuaDadbodHelpDesc",
+        })
+    end
+    for index in pairs(sections) do
+        vim.api.nvim_buf_set_extmark(buf, namespace, index - 1, 0, {
+            end_col = #lines[index],
+            hl_group = "LuaDadbodHelpSection",
         })
     end
 
