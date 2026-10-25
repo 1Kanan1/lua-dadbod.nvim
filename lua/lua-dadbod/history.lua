@@ -68,11 +68,7 @@ end
 
 function M.preview_text(entry)
     local text = tostring(entry.sql or ""):gsub("%s+", " ")
-    text = util.trim(text)
-    if vim.fn.strchars(text) > 80 then
-        text = vim.fn.strcharpart(text, 0, 77) .. "..."
-    end
-    return text
+    return util.trim(text)
 end
 
 local function preview_lines(entry)

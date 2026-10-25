@@ -4,6 +4,22 @@ function M.trim(value)
     return (tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", ""))
 end
 
+function M.ellipsis(value, max)
+    local text = tostring(value or "")
+    if max <= 0 then
+        return ""
+    end
+    if vim.fn.strdisplaywidth(text) <= max then
+        return text
+    end
+
+    local out = text
+    while out ~= "" and vim.fn.strdisplaywidth(out .. "…") > max do
+        out = vim.fn.strcharpart(out, 0, math.max(0, vim.fn.strchars(out) - 1))
+    end
+    return out .. "…"
+end
+
 function M.slug(value)
     local slug = tostring(value or ""):gsub("[^%w_-]", "_")
     slug = slug:gsub("_+", "_"):gsub("^_+", ""):gsub("_+$", "")

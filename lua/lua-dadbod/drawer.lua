@@ -63,7 +63,7 @@ local function clean_text(value)
     return text
 end
 
-local function row_display(row)
+local function row_display(row, width)
     local prefix = string.rep("  ", row.level)
     local label = clean_text(row.label)
     local suffix = clean_text(row.suffix)
@@ -71,6 +71,22 @@ local function row_display(row)
     local expand_icon = row.icon or ""
     local type_icon = row.type_icon or ""
     local highlights = {}
+
+    local suffix_text = suffix ~= "" and (" " .. suffix) or ""
+    local marker_text = marker ~= "" and (" " .. marker) or ""
+
+    if row.truncate and width then
+        local head = vim.fn.strdisplaywidth(prefix)
+        if expand_icon ~= "" then
+            head = head + vim.fn.strdisplaywidth(expand_icon) + 1
+        end
+        if type_icon ~= "" then
+            head = head + vim.fn.strdisplaywidth(type_icon) + 1
+        end
+        local tail = vim.fn.strdisplaywidth(suffix_text .. marker_text)
+        local available = math.max(8, width - head - tail)
+        label = util.ellipsis(label, available)
+    end
 
     local text = prefix
     if expand_icon ~= "" then
@@ -95,13 +111,13 @@ local function row_display(row)
 
     if suffix ~= "" then
         local start = #text + 1
-        text = text .. " " .. suffix
+        text = text .. suffix_text
         highlights[#highlights + 1] = { start, #text, "LuaDadbodCount" }
     end
 
     if marker ~= "" then
         local start = #text + 1
-        text = text .. " " .. marker
+        text = text .. marker_text
         highlights[#highlights + 1] = { start, #text, "LuaDadbodActive" }
     end
 
@@ -480,14 +496,16 @@ function M.render()
                 label = history.preview_text(entry),
                 suffix = "(" .. conn_label .. ", " .. os.date("%H:%M", entry.time or os.time()) .. ")",
                 entry = entry,
+                truncate = true,
             }
         end,
     })
 
     local lines = {}
     local highlights = {}
+    local width = vim.api.nvim_win_get_width(win)
     for index, row in ipairs(rows) do
-        local text, row_highlights = row_display(row)
+        local text, row_highlights = row_display(row, width)
         lines[index] = text
         highlights[index] = row_highlights
     end

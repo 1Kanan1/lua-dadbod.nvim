@@ -327,7 +327,9 @@ One text buffer, one row list, rendered from scratch on each change. Expanded st
 - The drawer is always one window. Rendering closes any extra window that shows
   the drawer buffer.
 - History is global and session-only. It records every query that finishes,
-  newest first, capped at 50, and deduplicates by connection plus SQL.
+  newest first, capped at 50, and deduplicates by connection plus SQL. The row
+  label is the query on one line, truncated with `…` to leave room for the
+  connection and time suffix within the drawer width.
 - `Enter` on a history row opens a floating preview with the full SQL.
   `R` reruns directly from the stored history entry, closes the preview, and
   shows the result. `q` or `<Esc>` closes without running.

@@ -1028,6 +1028,63 @@ h.test("open_split applies a height fraction", function()
     pcall(vim.cmd, "silent! only")
 end)
 
+h.test("ellipsis truncates by display width", function()
+    h.eq(util.ellipsis("abcdef", 4), "abc…")
+    h.eq(util.ellipsis("abc", 5), "abc")
+    h.eq(util.ellipsis("éééé", 3), "éé…")
+end)
+
+h.test("history rows truncate to the drawer width", function()
+    local history = require("lua-dadbod.history")
+    pcall(vim.cmd, "silent! only")
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    config.setup({
+        save_location = directory .. "/lua-dadbod",
+        tmp_location = directory .. "/queries",
+    })
+    vim.g.dbs = { test = "sqlite::memory:" }
+    ui.reset()
+    history.clear()
+    history.add({
+        conn = "sqlite::memory:",
+        dbms = "sqlite",
+        name = "test",
+        sql = "select " .. string.rep("column_name, ", 20) .. "from users;",
+        code = 0,
+        elapsed = 0.01,
+        time = os.time(),
+    })
+
+    local drawer = require("lua-dadbod.drawer")
+    drawer.history_expanded = true
+    drawer.open()
+    local drawer_win = drawer.find_win()
+    local width = vim.api.nvim_win_get_width(drawer_win)
+    local line
+    for _, text in ipairs(vim.api.nvim_buf_get_lines(0, 0, -1, false)) do
+        if text:find("select", 1, true) then
+            line = text
+        end
+    end
+    h.ok(line, "history row not found")
+    h.matches(line, "…")
+    h.matches(line, "%(test,")
+    h.eq(vim.fn.strdisplaywidth(line) <= width, true, "history row is wider than the drawer")
+
+    history.clear()
+    drawer.close()
+    pcall(vim.cmd, "silent! only")
+    restore_globals(previous, directory)
+end)
+
 h.test("global mappings follow setup", function()
     local lua_dadbod = require("lua-dadbod")
     lua_dadbod.setup({ mappings = { global = true } })
