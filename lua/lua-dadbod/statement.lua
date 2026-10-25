@@ -124,6 +124,58 @@ function M.is_metadata_change(sql, opts)
     return false
 end
 
+local row_words = {
+    select = true,
+    values = true,
+    show = true,
+    explain = true,
+    table = true,
+    describe = true,
+    desc = true,
+    pragma = true,
+    call = true,
+    fetch = true,
+    with = true,
+}
+
+local returning_words = { insert = true, update = true, delete = true, merge = true }
+
+local function part_returns_rows(part)
+    local word = part:match("^%s*([%a_]+)")
+    if not word then
+        -- A parenthesized SELECT, e.g. "(select 1) union (select 2)".
+        return part:match("^%s*%(") ~= nil
+    end
+    word = word:lower()
+    if row_words[word] then
+        return true
+    end
+    if returning_words[word] and part:lower():find("%f[%a_]returning%f[%A_]") then
+        return true
+    end
+    return false
+end
+
+-- True when every statement in the submission returns a result set, so the CLI
+-- prints a header row. DDL and plain DML only print a command tag ("CREATE
+-- TABLE"), which would otherwise render as a one-column table.
+function M.returns_rows(sql, opts)
+    if type(sql) ~= "string" or sql == "" then
+        return false
+    end
+
+    local found = false
+    for part in sanitize(sql, opts or {}):gmatch("[^;]+") do
+        if part:find("%S") then
+            found = true
+            if not part_returns_rows(part) then
+                return false
+            end
+        end
+    end
+    return found
+end
+
 local function scan(lines, opts)
     local chunks = {}
     local state = "code"

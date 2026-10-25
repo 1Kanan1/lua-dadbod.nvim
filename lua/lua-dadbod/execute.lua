@@ -60,7 +60,9 @@ function M.run(sql, opts, callback)
     end
 
     local canonical = url.format(parsed)
-    local metadata_change = statement.is_metadata_change(sql, statement.dialect(adapter.name))
+    local dialect = statement.dialect(adapter.name)
+    local metadata_change = statement.is_metadata_change(sql, dialect)
+    local returns_rows = statement.returns_rows(sql, dialect)
     local ui = require("lua-dadbod.ui")
     local configured = opts.conn_key and ui.get(opts.conn_key) or nil
     if not configured then
@@ -76,6 +78,7 @@ function M.run(sql, opts, callback)
         name = display,
         sql = sql,
         format = adapter.result_format,
+        returns_rows = returns_rows,
         bang = opts.bang,
     })
     if not result_buf then

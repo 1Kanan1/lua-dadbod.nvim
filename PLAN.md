@@ -425,6 +425,9 @@ Default global maps, installed by `setup()`:
   `bufhidden=wipe`, `filetype=lua_dadbod_result`.
 - Header: connection name, status, row count, elapsed time, exit code.
 - Results are parsed from adapter output: PostgreSQL/SQLite CSV, MySQL TSV.
+- Only submissions whose statements all return rows are parsed as tables.
+  DDL and plain DML print a CLI command tag instead (`CREATE TABLE`,
+  `INSERT 0 1`), which renders as plain lines with no header and no row count.
 - Cells are padded, numeric columns right-aligned, NULL shown as `NULL`, and
   cells longer than 60 display columns are trimmed with `…`.
 - Parse failures, multiple result sets, and non-tabular output fall back to raw

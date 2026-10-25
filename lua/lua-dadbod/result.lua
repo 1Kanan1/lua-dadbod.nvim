@@ -91,17 +91,22 @@ local function header(bufnr)
     return string.format("-- lua-dadbod: %s | %s | %s | exit %s", name, meta.status or "unknown", elapsed, code)
 end
 
+local function parse_table(meta, stdout)
+    if not meta or not meta.format or not meta.returns_rows then
+        return nil
+    end
+    local columns, rows = result_table.table(stdout, meta.format)
+    if not columns then
+        return nil
+    end
+    return { columns = columns, rows = rows }
+end
+
 local function result_lines(bufnr, result, parsed)
     local lines = { header(bufnr) }
     local max_lines = config.get().result.max_lines or 10000
     if not parsed then
-        local meta = get_meta(bufnr) or {}
-        if meta.format then
-            local columns, rows = result_table.table(result.stdout, meta.format)
-            if columns then
-                parsed = { columns = columns, rows = rows }
-            end
-        end
+        parsed = parse_table(get_meta(bufnr), result.stdout)
     end
 
     local function append(title, text)
@@ -172,6 +177,7 @@ function M.open(opts)
         name = opts.name,
         sql = opts.sql,
         format = opts.format,
+        returns_rows = opts.returns_rows == true,
         status = "running",
         started = util.now_ns(),
         generation = 1,
@@ -206,6 +212,7 @@ function M.reset(bufnr, opts)
     meta.name = opts.name
     meta.sql = opts.sql
     meta.format = opts.format or meta.format
+    meta.returns_rows = opts.returns_rows == true
     meta.status = "running"
     meta.started = util.now_ns()
     meta.code = nil
@@ -235,13 +242,7 @@ function M.update(bufnr, result)
         meta.status = "error"
     end
 
-    local parsed
-    if meta.format then
-        local columns, rows = result_table.table(result.stdout, meta.format)
-        if columns then
-            parsed = { columns = columns, rows = rows }
-        end
-    end
+    local parsed = parse_table(meta, result.stdout)
     meta.rows = parsed and #parsed.rows or nil
     set_meta(bufnr, meta)
     set_lines(bufnr, result_lines(bufnr, result, parsed))
