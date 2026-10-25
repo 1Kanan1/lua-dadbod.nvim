@@ -555,6 +555,12 @@ h.test("drawer expands a connection and opens a table", function()
     vim.g.dbs = { test = "sqlite:" .. path }
     ui.reset()
 
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_valid(buf) and vim.b[buf].lua_dadbod then
+            pcall(vim.api.nvim_buf_delete, buf, { force = true })
+        end
+    end
+
     local drawer = require("lua-dadbod.drawer")
     h.eq(drawer.scratchpads_expanded, false)
     h.eq(drawer.history_expanded, false)
@@ -568,6 +574,8 @@ h.test("drawer expands a connection and opens a table", function()
     h.eq(initial_text:find("Add connection", 1, true), nil)
     h.eq(initial_text:find("No scratchpads", 1, true), nil)
     h.eq(initial_text:find("No history yet", 1, true), nil)
+    h.matches(initial_text, "none saved")
+    h.matches(initial_text, "nothing yet")
     h.eq(vim.fn.hlexists("LuaDadbodDb"), 1)
     h.eq(vim.fn.hlexists("LuaDadbodTable"), 1)
     h.eq(vim.fn.hlexists("LuaDadbodScratchpads"), 1)
@@ -590,6 +598,21 @@ h.test("drawer expands a connection and opens a table", function()
         end
     end
     h.eq(visible_table, false)
+
+    local scratch_line
+    for index, row in ipairs(drawer.rows) do
+        if row.kind == "section" and row.section == "scratchpads" then
+            scratch_line = index
+        end
+    end
+    h.ok(scratch_line, "Scratchpads section not found")
+    local rows_before = #drawer.rows
+    vim.api.nvim_win_set_cursor(0, { scratch_line, 0 })
+    drawer.select("edit")
+    h.eq(drawer.scratchpads_expanded, true)
+    h.eq(#drawer.rows, rows_before, "expanding empty Scratchpads added rows")
+    drawer.select("edit")
+    h.eq(drawer.scratchpads_expanded, false)
 
     local tables_line
     for index, row in ipairs(drawer.rows) do

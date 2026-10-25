@@ -333,7 +333,9 @@ One text buffer, one row list, rendered from scratch on each change. Expanded st
   on a connection, table, scratchpad, or history row it uses that row's
   connection; on a section it uses the last activated connection. If none is
   active it uses the only configured connection or prompts.
-- Empty states: `No scratchpads. Press n to create one.` and `No history yet.`
+- Empty sections show a dim suffix next to the label: `none saved` for
+  Scratchpads, `nothing yet` for History, `no tables`, and `no schemas`.
+  Expanding an empty section adds no rows, so only the chevron changes.
 - Scratchpads and History start collapsed on the first drawer open. Their counts
   stay visible while collapsed.
 - Connections, Scratchpads, and History are adjacent, with no blank lines

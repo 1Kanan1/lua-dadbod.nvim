@@ -269,10 +269,6 @@ local function add_list_section(add, opts)
         label = opts.label,
         suffix = opts.suffix,
         body = function()
-            if #opts.items == 0 then
-                add({ kind = "help", level = opts.level + 1, label = opts.empty, label_hl = "LuaDadbodHelp" })
-                return
-            end
             for _, item in ipairs(opts.items) do
                 add(opts.row(item))
             end
@@ -306,7 +302,7 @@ local function add_table_section(add, entry, icons, level, schema, state)
         type_icon = icons.table,
         icon_hl = "LuaDadbodTable",
         label = "Tables",
-        suffix = state.loading and "(loading...)" or ("(" .. #tables .. ")"),
+        suffix = state.loading and "(loading...)" or (#tables == 0 and "no tables" or ("(" .. #tables .. ")")),
         key = entry.key,
         body = function()
             if state.loading then
@@ -314,14 +310,6 @@ local function add_table_section(add, entry, icons, level, schema, state)
                     kind = "help",
                     level = level + 1,
                     label = "loading...",
-                    label_hl = "LuaDadbodHelp",
-                    key = entry.key,
-                })
-            elseif #tables == 0 then
-                add({
-                    kind = "help",
-                    level = level + 1,
-                    label = "(no tables)",
                     label_hl = "LuaDadbodHelp",
                     key = entry.key,
                 })
@@ -390,15 +378,12 @@ local function add_connection_rows(add, entry, icons)
         type_icon = icons.schema,
         icon_hl = "LuaDadbodSchema",
         label = "Schemas",
-        suffix = entry.schemas_loading and "(loading...)" or ("(" .. #schemas .. ")"),
+        suffix = entry.schemas_loading and "(loading...)"
+            or (#schemas == 0 and "no schemas" or ("(" .. #schemas .. ")")),
         key = entry.key,
         body = function()
             if entry.schemas_loading then
                 add({ kind = "help", level = 2, label = "loading...", label_hl = "LuaDadbodHelp", key = entry.key })
-                return
-            end
-            if #schemas == 0 then
-                add({ kind = "help", level = 2, label = "(no schemas)", label_hl = "LuaDadbodHelp", key = entry.key })
                 return
             end
             for _, schema in ipairs(schemas) do
@@ -458,9 +443,8 @@ function M.render()
         type_icon = icons.scratchpads,
         icon_hl = "LuaDadbodScratchpads",
         label = "Scratchpads",
-        suffix = "(" .. #scratchpads .. ")",
+        suffix = #scratchpads == 0 and "none saved" or ("(" .. #scratchpads .. ")"),
         items = scratchpads,
-        empty = #entries == 0 and "No scratchpads." or "No scratchpads. Press n to create one.",
         row = function(item)
             local mark = (item.unsaved or item.modified) and " *" or ""
             return {
@@ -484,9 +468,8 @@ function M.render()
         type_icon = icons.history,
         icon_hl = "LuaDadbodHistory",
         label = "History",
-        suffix = "(" .. #history_entries .. ")",
+        suffix = #history_entries == 0 and "nothing yet" or ("(" .. #history_entries .. ")"),
         items = history_entries,
-        empty = "No history yet.",
         row = function(entry)
             local conn_label = ui.connection_label(entry.dbms, entry.name)
             return {
