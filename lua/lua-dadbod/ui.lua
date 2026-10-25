@@ -479,7 +479,7 @@ function M.find_saved_connection(path)
     return nil
 end
 
-local function save_connection(raw, name, callback)
+function M.save_connection(raw, name, callback)
     name = util.trim(name or "")
     if name == "" then
         name = url_name(raw)
@@ -489,21 +489,21 @@ local function save_connection(raw, name, callback)
     local data, err = read_file_connections()
     if not data then
         util.error(err)
-        return
+        return false
     end
 
     for _, item in ipairs(data) do
         if type(item) == "table" and item.name == name then
             util.error("a connection with that name already exists")
-            return
+            return false
         end
     end
 
     data[#data + 1] = { name = name, url = raw }
-    local ok, err = util.write_json(file, data)
+    local ok, write_err = util.write_json(file, data)
     if not ok then
-        util.error(err)
-        return
+        util.error(write_err)
+        return false
     end
 
     M.refresh()
@@ -511,6 +511,7 @@ local function save_connection(raw, name, callback)
         callback()
     end
     util.notify("added connection " .. name)
+    return true
 end
 
 function M.add_connection(opts, callback)
@@ -527,25 +528,17 @@ function M.add_connection(opts, callback)
         if name_value == "" then
             util.input("Connection name: ", url_name(url_value), function(input)
                 if input ~= nil then
-                    save_connection(url_value, input, callback)
+                    M.save_connection(url_value, input, callback)
                 end
             end)
             return
         end
-        save_connection(url_value, name_value, callback)
+        M.save_connection(url_value, name_value, callback)
     end
 
     if raw == "" then
-        util.input("Connection URL: ", "", function(input)
-            if input == nil then
-                return
-            end
-            input = util.trim(input)
-            if input == "" then
-                util.warn("connection URL is required")
-                return
-            end
-            finish(input, name)
+        require("lua-dadbod.form").open(opts, function(url_value, name_value)
+            return M.save_connection(url_value, name_value, callback)
         end)
         return
     end

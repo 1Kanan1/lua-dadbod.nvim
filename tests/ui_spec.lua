@@ -121,6 +121,28 @@ h.test("ui adds and deletes file connections", function()
     restore_globals(previous, directory)
 end)
 
+h.test("add connection without a URL opens the form", function()
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    config.setup({ save_location = directory .. "/lua-dadbod" })
+    ui.reset()
+
+    ui.add_connection()
+    local form = require("lua-dadbod.form")
+    h.ok(form.win, "connection form did not open")
+    h.eq(vim.api.nvim_win_get_config(form.win).relative, "editor")
+    form.close()
+
+    restore_globals(previous, directory)
+end)
+
 h.test(":LuaDadbodFindBuffer attaches the current buffer", function()
     local previous = {
         db = vim.g.db,

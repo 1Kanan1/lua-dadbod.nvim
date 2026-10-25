@@ -274,8 +274,10 @@ One table keyed by resolved connection URL:
 - No `:DB g:x = url`, no `:DB url :command`, no operator mapping.
 - Command completion is deferred until the core UI is stable.
 - `:LuaDadbod` opens the drawer, `:LuaDadbodToggle` toggles, `:LuaDadbodClose` closes.
-- `:LuaDadbodAddConnection` prompts for URL and name, validates the URL, appends to
-  `connections.json`, and refreshes the drawer.
+- `:LuaDadbodAddConnection` opens a floating connection form. Type selects
+  PostgreSQL, MySQL, or SQLite. The fields build a URL; a raw URL row overrides
+  them for parameters the form does not cover. Saving validates the URL, appends
+  `{ name, url }` to `connections.json`, and refreshes the drawer.
 - `:LuaDadbodFindBuffer` attaches the current buffer to a connection.
 - `:LuaDadbodRenameBuffer` renames a saved query.
 - `:LuaDadbodClearCache` clears metadata and completion caches.
@@ -514,7 +516,7 @@ lua_dadbod.setup(opts)
 lua_dadbod.open()
 lua_dadbod.toggle()
 lua_dadbod.close()
-lua_dadbod.add_connection(opts?)          -- nil opens prompts
+lua_dadbod.add_connection(opts?)          -- nil opens the connection form
 lua_dadbod.attach(bufnr?)                 -- nil means current buffer
 lua_dadbod.connections()                  -- copy of the connection list
 lua_dadbod.get_connection(key)
