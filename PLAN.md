@@ -245,11 +245,17 @@ One table keyed by resolved connection URL:
 ```
 
 - The drawer warms this cache asynchronously when a connection expands.
+- After a query that looks like DDL (`create`, `alter`, `drop`, `rename` at the
+  start of a top-level statement), the cache for that connection is invalidated.
+  If the drawer is open and the connection is expanded, it refetches in the
+  background; otherwise the next drawer open refetches.
 - Completion uses the cache. If a value is missing, it fetches once with a
   short timeout (default 3s), then caches it.
 - Opening a query from the drawer means the cache is already warm, so the
   first completion does not block.
 - `:LuaDadbodClearCache` and drawer refresh clear it.
+- External changes still need `R` or the clear-cache command. DDL executed
+  inside a `do` block or a procedure is not detected.
 - Keys include the schema, fixing the column collision in the old completion
   plugin.
 

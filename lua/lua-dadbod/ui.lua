@@ -420,6 +420,28 @@ function M.clear_meta()
     end
 end
 
+function M.invalidate(connection)
+    if type(connection) ~= "string" or connection == "" then
+        return nil
+    end
+
+    db.clear_meta(connection)
+    local entry = M.find_by_url(connection)
+    if not entry then
+        return nil
+    end
+
+    entry.loaded = false
+    entry.loading = false
+    entry.error = nil
+    entry.tables = {}
+    entry.schemas = {}
+    entry.schemas_loaded = false
+    entry.schemas_loading = false
+    entry.schema_state = {}
+    return entry
+end
+
 function M.saved_folder(entry)
     if type(entry) ~= "table" then
         return util.slug(entry or "")

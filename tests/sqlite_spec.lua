@@ -250,3 +250,61 @@ h.test("execute on save follows the config", function()
         execute_on_save = previous.execute,
     })
 end)
+
+h.test("DDL invalidates the metadata cache", function()
+    local ui = require("lua-dadbod.ui")
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    vim.fn.mkdir(directory, "p")
+    local path = directory .. "/meta.db"
+    vim.fn.writefile({}, path)
+    config.setup({
+        save_location = directory .. "/lua-dadbod",
+        tmp_location = directory .. "/queries",
+    })
+    vim.g.dbs = { test = "sqlite:" .. path }
+    ui.reset()
+
+    local entry = ui.get("test_g:dbs")
+    h.ok(entry)
+    entry.loaded = true
+    entry.tables = { "old" }
+
+    local result_buf = h.ok(execute.run("create table t (id integer);", { conn = entry.url }))
+    h.ok(wait_for(function()
+        local meta = vim.b[result_buf].lua_dadbod_result
+        return meta and meta.status ~= "running"
+    end), "DDL did not finish")
+    h.eq(entry.loaded, false)
+    h.eq(#entry.tables, 0)
+
+    entry.loaded = true
+    entry.tables = { "t" }
+    result_buf = h.ok(execute.run("select 1;", { conn = entry.url }))
+    h.ok(wait_for(function()
+        local meta = vim.b[result_buf].lua_dadbod_result
+        return meta and meta.status ~= "running"
+    end), "select did not finish")
+    h.eq(entry.loaded, true)
+    h.eq(entry.tables[1], "t")
+
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.b[buf].lua_dadbod_result then
+            pcall(vim.api.nvim_buf_delete, buf, { force = true })
+        end
+    end
+    pcall(vim.cmd, "silent! only")
+    vim.fn.delete(directory, "rf")
+    vim.g.db = previous.db
+    vim.g.dbs = previous.dbs
+    vim.env.LUA_DADBOD_URL = previous.url
+    vim.env.LUA_DADBOD_NAME = previous.name
+    config.setup({ save_location = previous.save, tmp_location = previous.tmp })
+end)

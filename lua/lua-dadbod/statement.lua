@@ -12,6 +12,118 @@ function M.dialect(dbms)
     }
 end
 
+local function sanitize(sql, opts)
+    local out = {}
+    local state = "code"
+    local block_depth = 0
+    local dollar_tag = nil
+    local quote_char = nil
+    local escapes = false
+    local i = 1
+
+    while i <= #sql do
+        local c = sql:sub(i, i)
+        local nextc = sql:sub(i + 1, i + 1)
+
+        if state == "quote" then
+            if c == quote_char then
+                if nextc == quote_char then
+                    i = i + 2
+                else
+                    state = "code"
+                    quote_char = nil
+                    i = i + 1
+                end
+            elseif escapes and c == "\\" then
+                i = i + 2
+            else
+                i = i + 1
+            end
+        elseif state == "line" then
+            if c == "\n" then
+                state = "code"
+                out[#out + 1] = "\n"
+            end
+            i = i + 1
+        elseif state == "block" then
+            if c == "*" and nextc == "/" then
+                block_depth = block_depth - 1
+                if block_depth == 0 then
+                    state = "code"
+                end
+                i = i + 2
+            elseif opts.nested_comments and c == "/" and nextc == "*" then
+                block_depth = block_depth + 1
+                i = i + 2
+            else
+                i = i + 1
+            end
+        elseif state == "dollar" then
+            if sql:sub(i, i + #dollar_tag - 1) == dollar_tag then
+                i = i + #dollar_tag
+                state = "code"
+                dollar_tag = nil
+            else
+                i = i + 1
+            end
+        elseif c == "-" and nextc == "-" then
+            state = "line"
+            out[#out + 1] = " "
+            i = i + 2
+        elseif opts.hash_comments and c == "#" then
+            state = "line"
+            out[#out + 1] = " "
+            i = i + 1
+        elseif c == "/" and nextc == "*" then
+            state = "block"
+            block_depth = 1
+            out[#out + 1] = " "
+            i = i + 2
+        elseif c == "'" or c == '"' or c == "`" then
+            state = "quote"
+            quote_char = c
+            local previous = i > 1 and sql:sub(i - 1, i - 1):lower() or ""
+            escapes = opts.backslash_escapes or (opts.backslash_escapes_e and previous == "e")
+            out[#out + 1] = " "
+            i = i + 1
+        elseif c == "$" and opts.dollar_quotes then
+            local tag = sql:match("^%$%$", i) or sql:match("^%$[%a_][%w_]*%$", i)
+            if tag then
+                state = "dollar"
+                dollar_tag = tag
+                out[#out + 1] = " "
+                i = i + #tag
+            else
+                out[#out + 1] = c
+                i = i + 1
+            end
+        else
+            out[#out + 1] = c
+            i = i + 1
+        end
+    end
+
+    return table.concat(out)
+end
+
+function M.is_metadata_change(sql, opts)
+    if type(sql) ~= "string" or sql == "" then
+        return false
+    end
+
+    for part in sanitize(sql, opts or {}):gmatch("[^;]+") do
+        local word = part:match("^%s*([%a_]+)")
+        if word then
+            word = word:lower()
+            if word == "create" or word == "alter" or word == "drop" or word == "rename" then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
 local function scan(lines, opts)
     local chunks = {}
     local state = "code"

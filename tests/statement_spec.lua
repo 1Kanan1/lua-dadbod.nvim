@@ -3,6 +3,29 @@ local statement = require("lua-dadbod.statement")
 
 local postgres = statement.dialect("postgresql")
 
+h.test("detect metadata changes", function()
+    local postgres = statement.dialect("postgresql")
+    local mysql = statement.dialect("mysql")
+
+    h.eq(statement.is_metadata_change("create table t (id int);"), true)
+    h.eq(statement.is_metadata_change("alter table t add column x int;"), true)
+    h.eq(statement.is_metadata_change("drop schema public;"), true)
+    h.eq(statement.is_metadata_change("rename table a to b;"), true)
+    h.eq(statement.is_metadata_change("select 1; create table t;"), true)
+    h.eq(statement.is_metadata_change("/* note */ drop table t;"), true)
+    h.eq(statement.is_metadata_change("-- note\ncreate view v as select 1;"), true)
+
+    h.eq(statement.is_metadata_change("select 'create table t';"), false)
+    h.eq(statement.is_metadata_change('select "drop" from t;'), false)
+    h.eq(statement.is_metadata_change("select 1 -- drop table t\n;"), false)
+    h.eq(statement.is_metadata_change("insert into t values (1);"), false)
+    h.eq(statement.is_metadata_change("with x as (select 1) select * from x;"), false)
+    h.eq(statement.is_metadata_change("do $$ begin create table t; end $$;", postgres), false)
+
+    h.eq(statement.is_metadata_change("# note\nselect 1;", mysql), false)
+    h.eq(statement.is_metadata_change("# note\ncreate table t;", mysql), true)
+end)
+
 h.test("find the statement under the cursor", function()
     local lines = { "select 1;", "", "select 2;", "select 3;" }
     h.eq(statement.find(lines, 1), { line1 = 1, line2 = 1, code = true })

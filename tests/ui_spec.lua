@@ -216,6 +216,43 @@ h.test("saved query folders use the connection name", function()
     restore_globals(previous, directory)
 end)
 
+h.test("invalidate resets connection metadata", function()
+    local previous = {
+        db = vim.g.db,
+        dbs = vim.g.dbs,
+        url = vim.env.LUA_DADBOD_URL,
+        name = vim.env.LUA_DADBOD_NAME,
+        save = config.get().save_location,
+        tmp = config.get().tmp_location,
+    }
+    local directory = vim.fn.tempname()
+    config.setup({
+        save_location = directory .. "/lua-dadbod",
+        tmp_location = directory .. "/queries",
+    })
+    vim.g.dbs = { test = "sqlite::memory:" }
+    ui.reset()
+
+    local entry = ui.get("test_g:dbs")
+    entry.loaded = true
+    entry.error = "boom"
+    entry.tables = { "users" }
+    entry.schemas = { "public" }
+    entry.schemas_loaded = true
+    entry.schema_state = { public = { loaded = true } }
+
+    local result = ui.invalidate(entry.url)
+    h.eq(result.key, entry.key)
+    h.eq(entry.loaded, false)
+    h.eq(entry.error, nil)
+    h.eq(#entry.tables, 0)
+    h.eq(#entry.schemas, 0)
+    h.eq(entry.schemas_loaded, false)
+    h.eq(next(entry.schema_state), nil)
+
+    restore_globals(previous, directory)
+end)
+
 h.test("scratchpads include saved files and open buffers", function()
     local previous = {
         db = vim.g.db,

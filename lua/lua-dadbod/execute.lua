@@ -1,5 +1,6 @@
 local db = require("lua-dadbod.db")
 local result = require("lua-dadbod.result")
+local statement = require("lua-dadbod.statement")
 local url = require("lua-dadbod.url")
 local util = require("lua-dadbod.util")
 
@@ -59,6 +60,7 @@ function M.run(sql, opts, callback)
     end
 
     local canonical = url.format(parsed)
+    local metadata_change = statement.is_metadata_change(sql, statement.dialect(adapter.name))
     local ui = require("lua-dadbod.ui")
     local configured = opts.conn_key and ui.get(opts.conn_key) or nil
     if not configured then
@@ -101,6 +103,18 @@ function M.run(sql, opts, callback)
             elapsed = query_result.elapsed,
             timed_out = query_result.timed_out,
         })
+
+        if metadata_change then
+            local entry = ui.invalidate(canonical)
+            local drawer = package.loaded["lua-dadbod.drawer"]
+            if drawer and drawer.is_open() then
+                if entry and entry.expanded then
+                    drawer.fetch(entry)
+                else
+                    drawer.render()
+                end
+            end
+        end
 
         local current = vim.api.nvim_buf_is_valid(result_buf) and vim.b[result_buf].lua_dadbod_result or nil
         local is_current = current ~= nil and current.generation == generation

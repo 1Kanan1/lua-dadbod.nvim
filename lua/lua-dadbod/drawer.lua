@@ -159,11 +159,20 @@ vim.api.nvim_create_autocmd("BufWinEnter", {
     end,
 })
 
+local function fetch_unloaded()
+    for _, entry in ipairs(ui.connections()) do
+        if entry.expanded and not entry.loaded and not entry.loading then
+            M.fetch(entry)
+        end
+    end
+end
+
 function M.open()
     setup_highlights()
     local win, buf = M.find_win()
     if win then
         M.render()
+        fetch_unloaded()
         vim.api.nvim_set_current_win(win)
         return buf
     end
@@ -193,6 +202,7 @@ function M.open()
     pcall(vim.cmd, "vertical resize " .. config.get().win.width)
     M.setup_keymaps(buf)
     M.render()
+    fetch_unloaded()
     return buf
 end
 
