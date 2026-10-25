@@ -33,6 +33,15 @@ local function find_window(bufnr)
     return windows and windows[1] or nil
 end
 
+local function find_result_window()
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+        local buf = vim.api.nvim_win_get_buf(win)
+        if vim.b[buf].lua_dadbod_result then
+            return win
+        end
+    end
+end
+
 local function style_window(win)
     vim.wo[win].number = false
     vim.wo[win].relativenumber = false
@@ -45,7 +54,13 @@ local function show(bufnr)
         style_window(win)
         return
     end
-    local target = util.open_split({ bufnr = bufnr, restore = true })
+    local target = find_result_window()
+    if target then
+        vim.api.nvim_win_set_buf(target, bufnr)
+        style_window(target)
+        return
+    end
+    target = util.open_split({ bufnr = bufnr, restore = true })
     if target then
         style_window(target)
     end

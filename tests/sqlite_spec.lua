@@ -78,6 +78,39 @@ h.test("execute.run creates a result buffer", function()
     h.eq(vim.wo[result_win].relativenumber, false)
 end)
 
+h.test("a new result replaces the visible result window", function()
+    local source1 = vim.api.nvim_create_buf(true, false)
+    local source2 = vim.api.nvim_create_buf(true, false)
+    local r1 = h.ok(execute.run("select 1 as a;", { bufnr = source1, conn = "sqlite::memory:" }))
+    h.ok(wait_for(function()
+        local meta = vim.b[r1].lua_dadbod_result
+        return meta and meta.status ~= "running"
+    end), "first result did not finish")
+
+    local r2 = h.ok(execute.run("select 2 as b;", { bufnr = source2, conn = "sqlite::memory:" }))
+    h.ok(wait_for(function()
+        local meta = vim.b[r2].lua_dadbod_result
+        return meta and meta.status ~= "running"
+    end), "second result did not finish")
+
+    local result_windows = 0
+    local shown
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+        local buf = vim.api.nvim_win_get_buf(win)
+        if vim.b[buf].lua_dadbod_result then
+            result_windows = result_windows + 1
+            shown = buf
+        end
+    end
+    h.eq(result_windows, 1, "a second result window was opened")
+    h.eq(shown, r2)
+
+    for _, buf in ipairs({ r1, r2, source1, source2 }) do
+        pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    end
+    pcall(vim.cmd, "silent! only")
+end)
+
 h.test("q closes a result window and its tab", function()
     pcall(vim.cmd, "silent! tabonly")
     vim.cmd("tabnew")
@@ -283,7 +316,7 @@ h.test("DDL invalidates the metadata cache", function()
         return meta and meta.status ~= "running"
     end), "DDL did not finish")
     h.eq(entry.loaded, false)
-    h.eq(#entry.tables, 0)
+    h.eq(entry.tables[1], "old")
 
     entry.loaded = true
     entry.tables = { "t" }

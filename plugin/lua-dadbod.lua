@@ -18,7 +18,7 @@ local function refresh_expanded()
     local drawer = require("lua-dadbod.drawer")
     for _, entry in ipairs(ui.connections()) do
         if entry.expanded then
-            drawer.fetch(entry)
+            drawer.refetch(entry)
         end
     end
 end

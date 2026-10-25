@@ -424,7 +424,8 @@ Default global maps, installed by `setup()`:
 - Parse failures, multiple result sets, and non-tabular output fall back to raw
   stdout. Stderr follows if non-empty.
 - Opened in a split without stealing focus. Reused for the same query buffer
-  when possible.
+  when possible. If another result window is already visible, the new result
+  replaces its buffer, so only one result pane is shown.
 - `R` reruns the stored SQL, `<C-c>` cancels, `q` closes.
 - Leaving the buffer cancels a running job.
 - Output is capped at `result.max_lines` (default 10000) with a notice.

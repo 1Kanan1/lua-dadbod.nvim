@@ -162,7 +162,7 @@ vim.api.nvim_create_autocmd("BufWinEnter", {
 local function fetch_unloaded()
     for _, entry in ipairs(ui.connections()) do
         if entry.expanded and not entry.loaded and not entry.loading then
-            M.fetch(entry)
+            M.refetch(entry)
         end
     end
 end
@@ -557,10 +557,11 @@ function M.fetch_schemas(entry)
         current.schemas_loaded = err == nil
         if err then
             current.error = err
-            current.schemas = {}
-            current.schema_state = {}
-            current.expanded = false
-            ui.deactivate(key)
+            if #current.schemas == 0 then
+                current.schema_state = {}
+                current.expanded = false
+                ui.deactivate(key)
+            end
             util.error(current.name .. ": " .. err)
         else
             current.error = nil
@@ -603,9 +604,10 @@ function M.fetch_schema_tables(entry, schema)
         end
         current_state.loading = false
         if err then
-            current_state.tables = {}
             current_state.loaded = false
-            current_state.expanded = false
+            if #current_state.tables == 0 then
+                current_state.expanded = false
+            end
             util.error(current.name .. "/" .. schema .. ": " .. err)
         else
             current_state.tables = tables or {}
@@ -638,10 +640,11 @@ function M.fetch(entry)
             current.loaded = true
             if err then
                 current.error = err
-                current.tables = {}
-                current.expanded = false
-                current.tables_expanded = false
-                ui.deactivate(key)
+                if #current.tables == 0 then
+                    current.expanded = false
+                    current.tables_expanded = false
+                    ui.deactivate(key)
+                end
                 util.error(current.name .. ": " .. err)
             else
                 current.tables = tables or {}
@@ -650,6 +653,23 @@ function M.fetch(entry)
                 M.render()
             end
         end)
+    end
+end
+
+function M.refetch(entry)
+    if not entry then
+        return
+    end
+    if not entry.schemas_supported then
+        M.fetch(entry)
+        return
+    end
+
+    M.fetch_schemas(entry)
+    for schema, state in pairs(entry.schema_state) do
+        if state.expanded then
+            M.fetch_schema_tables(entry, schema)
+        end
     end
 end
 
@@ -958,30 +978,16 @@ function M.refresh()
 
     if entry then
         local had_error = entry.error ~= nil
-        entry.loaded = false
-        entry.error = nil
-        entry.tables = {}
-        entry.schemas = {}
-        entry.schemas_loaded = false
-        entry.schemas_loading = false
-        entry.schema_state = {}
-        db.clear_meta(entry.url)
+        ui.invalidate(entry.url)
         if entry.expanded or had_error then
-            M.fetch(entry)
+            M.refetch(entry)
         end
     else
-        db.clear_meta()
+        ui.clear_meta()
         ui.refresh()
         for _, item in ipairs(ui.connections()) do
-            item.loaded = false
-            item.error = nil
-            item.tables = {}
-            item.schemas = {}
-            item.schemas_loaded = false
-            item.schemas_loading = false
-            item.schema_state = {}
             if item.expanded then
-                M.fetch(item)
+                M.refetch(item)
             end
         end
     end

@@ -239,16 +239,18 @@ h.test("invalidate resets connection metadata", function()
     entry.tables = { "users" }
     entry.schemas = { "public" }
     entry.schemas_loaded = true
-    entry.schema_state = { public = { loaded = true } }
+    entry.schema_state = { public = { loaded = true, expanded = true, tables_expanded = true } }
 
     local result = ui.invalidate(entry.url)
     h.eq(result.key, entry.key)
     h.eq(entry.loaded, false)
     h.eq(entry.error, nil)
-    h.eq(#entry.tables, 0)
-    h.eq(#entry.schemas, 0)
+    h.eq(entry.tables[1], "users")
+    h.eq(entry.schemas[1], "public")
     h.eq(entry.schemas_loaded, false)
-    h.eq(next(entry.schema_state), nil)
+    h.eq(entry.schema_state.public.loaded, false)
+    h.eq(entry.schema_state.public.expanded, true)
+    h.eq(entry.schema_state.public.tables_expanded, true)
 
     restore_globals(previous, directory)
 end)
@@ -663,7 +665,7 @@ h.test("drawer expands a connection and opens a table", function()
 end)
 
 h.test("drawer loads schemas and schema tables", function()
-    require("lua-dadbod.adapters").register({
+    local adapter = {
         name = "uitestmeta",
         binary = "sqlite3",
         quote = { '"', '"' },
@@ -680,7 +682,8 @@ h.test("drawer loads schemas and schema tables", function()
             end
             return "select 'other_table'"
         end,
-    })
+    }
+    require("lua-dadbod.adapters").register(adapter)
 
     local previous = {
         db = vim.g.db,
@@ -752,6 +755,45 @@ h.test("drawer loads schemas and schema tables", function()
     h.eq(table_rows[2].table, "users")
     h.eq(table_rows[1].schema, "public")
     h.eq(table_rows[1].level, 4)
+
+    ui.invalidate(entry.url)
+    h.eq(entry.schemas_loaded, false)
+    h.eq(state.expanded, true)
+    h.eq(state.tables_expanded, true)
+
+    drawer.refetch(entry)
+    h.ok(vim.wait(5000, function()
+        return entry.schemas_loaded and state.loaded and not state.loading
+    end), "refetch did not finish")
+    h.eq(state.expanded, true, "schema collapsed after refetch")
+    h.eq(state.tables_expanded, true, "Tables collapsed after refetch")
+    local visible = false
+    for _, row in ipairs(drawer.rows) do
+        if row.kind == "table" and row.table == "users" then
+            visible = true
+        end
+    end
+    h.eq(visible, true, "table rows disappeared after refetch")
+
+    adapter.tables_sql = function()
+        return "select * from definitely_missing_table"
+    end
+    drawer.fetch_schema_tables(entry, "public")
+    h.ok(vim.wait(5000, function()
+        return not state.loading
+    end), "failed table fetch did not finish")
+    h.eq(state.expanded, true, "schema collapsed on a table metadata error")
+    h.eq(#state.tables, 2, "tables were cleared on a metadata error")
+
+    adapter.schemas_sql = function()
+        return "select * from definitely_missing_table"
+    end
+    drawer.fetch_schemas(entry)
+    h.ok(vim.wait(5000, function()
+        return not entry.schemas_loading
+    end), "failed schema fetch did not finish")
+    h.eq(entry.expanded, true, "connection collapsed on a schema metadata error")
+    h.eq(#entry.schemas, 2, "schemas were cleared on a metadata error")
 
     drawer.close()
     pcall(vim.cmd, "silent! only")

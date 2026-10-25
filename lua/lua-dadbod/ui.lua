@@ -407,16 +407,22 @@ function M.reset()
     db.clear_meta()
 end
 
+local function invalidate_entry(entry)
+    entry.loaded = false
+    entry.loading = false
+    entry.error = nil
+    entry.schemas_loaded = false
+    entry.schemas_loading = false
+    for _, schema_state in pairs(entry.schema_state or {}) do
+        schema_state.loaded = false
+        schema_state.loading = false
+    end
+end
+
 function M.clear_meta()
     db.clear_meta()
     for _, entry in ipairs(state.list) do
-        entry.loaded = false
-        entry.error = nil
-        entry.tables = {}
-        entry.schemas = {}
-        entry.schemas_loaded = false
-        entry.schemas_loading = false
-        entry.schema_state = {}
+        invalidate_entry(entry)
     end
 end
 
@@ -431,14 +437,7 @@ function M.invalidate(connection)
         return nil
     end
 
-    entry.loaded = false
-    entry.loading = false
-    entry.error = nil
-    entry.tables = {}
-    entry.schemas = {}
-    entry.schemas_loaded = false
-    entry.schemas_loading = false
-    entry.schema_state = {}
+    invalidate_entry(entry)
     return entry
 end
 

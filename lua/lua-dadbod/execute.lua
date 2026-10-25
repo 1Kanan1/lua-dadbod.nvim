@@ -109,7 +109,7 @@ function M.run(sql, opts, callback)
             local drawer = package.loaded["lua-dadbod.drawer"]
             if drawer and drawer.is_open() then
                 if entry and entry.expanded then
-                    drawer.fetch(entry)
+                    drawer.refetch(entry)
                 else
                     drawer.render()
                 end
