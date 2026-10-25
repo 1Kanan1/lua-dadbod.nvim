@@ -175,6 +175,10 @@ function M.fetch_schemas(input, callback)
     end
 
     local key = url.format(parsed)
+    if not key then
+        callback(nil, "invalid connection URL")
+        return
+    end
     if meta_cache.schemas[key] then
         callback(vim.deepcopy(meta_cache.schemas[key]), nil)
         return
@@ -232,6 +236,10 @@ function M.fetch_tables(input, schema, callback)
     end
 
     local key = url.format(parsed)
+    if not key then
+        callback(nil, "invalid connection URL")
+        return
+    end
     local cache_key = key .. "\0" .. (schema or "")
     if meta_cache.tables[cache_key] then
         callback(vim.deepcopy(meta_cache.tables[cache_key]), nil)
@@ -279,6 +287,9 @@ function M.clear_meta(input)
         local parsed = M.parse(input)
         if parsed then
             local key = url.format(parsed)
+            if not key then
+                return
+            end
             meta_cache.schemas[key] = nil
             meta_cache.loading.schemas[key] = nil
 

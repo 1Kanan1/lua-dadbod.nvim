@@ -170,8 +170,8 @@ function M.run_buffer(opts)
         lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
     end
 
-    local statement = table.concat(lines, "\n")
-    if util.trim(statement) == "" then
+    local sql = table.concat(lines, "\n")
+    if util.trim(sql) == "" then
         return nil, "empty query"
     end
 
@@ -179,7 +179,7 @@ function M.run_buffer(opts)
     local bind = meta.bind or {}
     local query = require("lua-dadbod.query")
 
-    query.resolve_binds(statement, bind, function(resolved, updated_bind)
+    query.resolve_binds(sql, bind, function(resolved, updated_bind)
         meta.bind = updated_bind
         vim.b[bufnr].lua_dadbod = meta
         M.run(resolved, {
@@ -225,18 +225,18 @@ local function parse_args(args)
 end
 
 function M.db_command(opts)
-    local connection, statement, file = parse_args(opts.args)
+    local connection, sql, file = parse_args(opts.args)
     if file then
         file = vim.fn.expand(file)
         local lines, err = util.read_file(file)
         if not lines then
             return nil, err
         end
-        statement = table.concat(lines, "\n")
+        sql = table.concat(lines, "\n")
     end
 
     if (opts.range or 0) > 0 then
-        if statement and statement ~= "" then
+        if sql and sql ~= "" then
             return nil, "range form accepts a connection URL only"
         end
         return M.run_buffer({
@@ -248,8 +248,8 @@ function M.db_command(opts)
         })
     end
 
-    if statement and statement ~= "" then
-        return M.run(statement, {
+    if sql and sql ~= "" then
+        return M.run(sql, {
             bufnr = vim.api.nvim_get_current_buf(),
             conn = connection,
             bang = opts.bang,

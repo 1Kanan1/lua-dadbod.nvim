@@ -500,7 +500,9 @@ function M.run_visual(bufnr)
     if mode == "v" or mode == "V" or mode == "\22" then
         -- Visual mappings run before Vim records the selection, so '< and '>
         -- are still 0 here. Leaving visual mode sets them.
-        pcall(vim.cmd, "normal! \27")
+        pcall(function()
+            vim.cmd("normal! \27")
+        end)
     end
     local start = vim.fn.line("'<")
     local finish = vim.fn.line("'>")
@@ -529,8 +531,8 @@ function M.save_as(bufnr, name)
         return nil, "buffer is not attached to a connection"
     end
 
-    local name, name_err = query_name(name)
-    if not name then
+    local filename, name_err = query_name(name)
+    if not filename then
         return nil, name_err
     end
 
@@ -541,7 +543,7 @@ function M.save_as(bufnr, name)
     local directory = vim.fn.expand(config.get().save_location) .. "/queries/" .. folder
     util.ensure_dir(directory)
 
-    local path = directory .. "/" .. name
+    local path = directory .. "/" .. filename
     if vim.fn.filereadable(path) == 1 then
         return nil, "a query with that name already exists"
     end

@@ -215,7 +215,9 @@ function M.open()
     vim.wo[win].cursorline = true
     vim.wo[win].cursorlineopt = "line"
 
-    pcall(vim.cmd, "vertical resize " .. config.get().win.width)
+    pcall(function()
+        vim.cmd("vertical resize " .. config.get().win.width)
+    end)
     M.setup_keymaps(buf)
     M.render()
     fetch_unloaded()
@@ -523,8 +525,13 @@ function M.render()
     vim.bo[buf].modifiable = false
 
     for index, row_highlights in ipairs(highlights) do
+        local end_of_line = #(lines[index] or "")
         for _, highlight in ipairs(row_highlights) do
-            vim.api.nvim_buf_add_highlight(buf, highlight_ns, highlight[3], index - 1, highlight[1], highlight[2])
+            vim.api.nvim_buf_set_extmark(buf, highlight_ns, index - 1, highlight[1], {
+                end_row = index - 1,
+                end_col = math.min(highlight[2], end_of_line),
+                hl_group = highlight[3],
+            })
         end
     end
 

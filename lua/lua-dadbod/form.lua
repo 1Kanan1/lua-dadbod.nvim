@@ -222,6 +222,9 @@ end
 
 local function save()
     local state = M.state
+    if not state then
+        return
+    end
     if state.port ~= "" and not state.port:match("^%d+$") then
         util.error("port must be a number")
         return
@@ -263,6 +266,9 @@ local function edit()
 
     local state = M.state
     local win = M.win
+    if not state then
+        return
+    end
 
     if field.key == "adapter" then
         local labels = {}

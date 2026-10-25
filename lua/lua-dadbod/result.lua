@@ -60,13 +60,13 @@ local function show(bufnr)
         style_window(target)
         return
     end
-    target = util.open_split({
+    local split = util.open_split({
         bufnr = bufnr,
         restore = true,
         height = config.get().result.height,
     })
-    if target then
-        style_window(target)
+    if split then
+        style_window(split)
     end
 end
 
@@ -247,7 +247,12 @@ function M.update(bufnr, result)
     set_meta(bufnr, meta)
     set_lines(bufnr, result_lines(bufnr, result, parsed))
     if parsed then
-        vim.api.nvim_buf_add_highlight(bufnr, highlight_ns, "LuaDadbodResultHeader", 1, 0, -1)
+        local line = vim.api.nvim_buf_get_lines(bufnr, 1, 2, false)[1] or ""
+        vim.api.nvim_buf_set_extmark(bufnr, highlight_ns, 1, 0, {
+            end_row = 1,
+            end_col = #line,
+            hl_group = "LuaDadbodResultHeader",
+        })
     end
 end
 
@@ -284,7 +289,9 @@ function M.close(bufnr)
         end
     end
     if vim.api.nvim_buf_is_valid(bufnr) then
-        pcall(vim.cmd, "bdelete " .. bufnr)
+        pcall(function()
+            vim.cmd("bdelete " .. bufnr)
+        end)
     end
 end
 
