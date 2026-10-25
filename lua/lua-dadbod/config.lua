@@ -26,6 +26,7 @@ local defaults = {
     },
     result = {
         max_lines = 10000,
+        height = 0.4,
     },
     mappings = {
         enabled = true,
@@ -98,6 +99,12 @@ local function validate(opts)
             assert(
                 type(opts.result.max_lines) == "number" and opts.result.max_lines > 0,
                 "lua-dadbod.setup: result.max_lines must be a positive number"
+            )
+        end
+        if opts.result.height ~= nil then
+            assert(
+                type(opts.result.height) == "number" and opts.result.height > 0 and opts.result.height <= 1,
+                "lua-dadbod.setup: result.height must be a fraction between 0 and 1"
             )
         end
     end

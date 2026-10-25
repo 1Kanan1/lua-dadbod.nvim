@@ -174,6 +174,7 @@ function M.open_split(opts)
     else
         command = "botright split"
     end
+    local parent_height = vim.api.nvim_win_get_height(0)
     if not pcall(vim.cmd, command) then
         if not pcall(vim.cmd, "tabnew") then
             return nil
@@ -182,6 +183,11 @@ function M.open_split(opts)
     local win = vim.api.nvim_get_current_win()
     if opts.bufnr then
         vim.api.nvim_win_set_buf(win, opts.bufnr)
+    end
+    if opts.height and opts.height > 0 and command == "botright split" then
+        local height = math.floor(parent_height * opts.height)
+        height = math.max(1, math.min(height, parent_height - 1))
+        pcall(vim.api.nvim_win_set_height, win, height)
     end
     if opts.restore then
         vim.api.nvim_set_current_win(current)

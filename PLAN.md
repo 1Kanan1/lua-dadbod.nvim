@@ -428,7 +428,8 @@ Default global maps, installed by `setup()`:
   replaces its buffer, so only one result pane is shown.
 - `R` reruns the stored SQL, `<C-c>` cancels, `q` closes.
 - Leaving the buffer cancels a running job.
-- Output is capped at `result.max_lines` (default 10000) with a notice.
+- Output is capped at `result.max_lines` (default 10000) with a notice. The
+  result window takes `result.height` of the parent window (default 0.4).
 - No folds, cell yank, header yank, foreign-key jump, or layout toggle.
   Normal Vim search and yank still work on the output.
 - Events:
@@ -483,7 +484,7 @@ require("lua-dadbod").setup({
     history_entry = "·",
     active = "●",
   },
-  result = { max_lines = 10000 },
+  result = { max_lines = 10000, height = 0.4 },
   mappings = {
     enabled = true,
     global = true,

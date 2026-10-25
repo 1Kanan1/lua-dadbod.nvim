@@ -967,6 +967,22 @@ h.test("drawer help lists its keymaps", function()
     help.close()
 end)
 
+h.test("open_split applies a height fraction", function()
+    pcall(vim.cmd, "silent! only")
+    local parent = vim.api.nvim_get_current_win()
+    local parent_height = vim.api.nvim_win_get_height(parent)
+    local buf = vim.api.nvim_create_buf(false, true)
+
+    local target = util.open_split({ bufnr = buf, restore = true, height = 0.4 })
+    h.ok(target, "no window was opened")
+    local expected = math.max(1, math.min(math.floor(parent_height * 0.4), parent_height - 1))
+    h.eq(vim.api.nvim_win_get_height(target), expected)
+    h.eq(vim.api.nvim_get_current_win(), parent)
+
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    pcall(vim.cmd, "silent! only")
+end)
+
 h.test("global mappings follow setup", function()
     local lua_dadbod = require("lua-dadbod")
     lua_dadbod.setup({ mappings = { global = true } })

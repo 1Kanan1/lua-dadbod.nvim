@@ -60,7 +60,11 @@ local function show(bufnr)
         style_window(target)
         return
     end
-    target = util.open_split({ bufnr = bufnr, restore = true })
+    target = util.open_split({
+        bufnr = bufnr,
+        restore = true,
+        height = config.get().result.height,
+    })
     if target then
         style_window(target)
     end
