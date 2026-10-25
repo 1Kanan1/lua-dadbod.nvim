@@ -496,6 +496,12 @@ end
 
 function M.run_visual(bufnr)
     bufnr = bufnr or vim.api.nvim_get_current_buf()
+    local mode = vim.fn.mode()
+    if mode == "v" or mode == "V" or mode == "\22" then
+        -- Visual mappings run before Vim records the selection, so '< and '>
+        -- are still 0 here. Leaving visual mode sets them.
+        pcall(vim.cmd, "normal! \27")
+    end
     local start = vim.fn.line("'<")
     local finish = vim.fn.line("'>")
     if start == 0 or finish == 0 then

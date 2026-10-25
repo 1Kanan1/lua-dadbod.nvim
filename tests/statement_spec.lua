@@ -154,3 +154,37 @@ h.test("run only the statement under the cursor", function()
     vim.fn.delete(save_location, "rf")
     config.setup()
 end)
+
+h.test("run only the visual selection", function()
+    local config = require("lua-dadbod.config")
+    local query = require("lua-dadbod.query")
+    local save_location = vim.fn.tempname() .. "/lua-dadbod"
+    config.setup({ save_location = save_location, mappings = { enabled = true, query = true } })
+
+    local bufnr = h.ok(query.open("sqlite::memory:", { auto_execute = false }))
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
+        "select 1 as first;",
+        "select 2 as second;",
+        "select 3 as third;",
+    })
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("Vj<CR>", true, false, true), "x", false)
+    h.eq(vim.fn.mode(), "n", "visual mode should end after running a selection")
+
+    local result_buf = vim.b[bufnr].lua_dadbod_result_buf
+    h.ok(result_buf, "result buffer was not created")
+    h.ok(vim.wait(5000, function()
+        local text = table.concat(vim.api.nvim_buf_get_lines(result_buf, 0, -1, false), "\n")
+        return text:find("second", 1, true) ~= nil
+    end), "selection did not finish")
+
+    local text = table.concat(vim.api.nvim_buf_get_lines(result_buf, 0, -1, false), "\n")
+    h.matches(text, "second")
+    h.eq(text:find("third", 1, true), nil)
+
+    pcall(vim.api.nvim_buf_delete, result_buf, { force = true })
+    pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
+    pcall(vim.cmd, "silent! only")
+    vim.fn.delete(save_location, "rf")
+    config.setup()
+end)
