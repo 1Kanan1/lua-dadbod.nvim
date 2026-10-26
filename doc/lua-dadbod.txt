@@ -47,22 +47,32 @@ Blink is optional and only needed for the Blink completion source.
 ==============================================================================
 3. INSTALLATION                                     *lua-dadbod-installation*
 
-Clone the repository and point lazy.nvim at the directory: >
+Add this to your lazy.nvim plugin list: >
 
-    git clone https://github.com/1Kanan1/lua-dadbod.nvim ~/dev/lua-dadbod
+    {
+      "1Kanan1/lua-dadbod.nvim",
+      lazy = false, -- :DB and saved-query autocommands at startup
+      opts = {},    -- passed to require("lua-dadbod").setup()
+    }
 <
-~/.config/nvim/lua/plugins/lua-dadbod.lua: >
+lazy.nvim installs the plugin under `~/.local/share/nvim/lazy/lua-dadbod.nvim`
+and generates its help tags, so `:help lua-dadbod` works after installation.
+
+Do not lazy-load it on `ft = sql` or `VeryLazy`: the saved-query autocommands
+must be registered before the first SQL buffer is read, and `:DB` should be
+available from startup.
+
+Local development uses the checkout directly: >
 
     {
       dir = "~/dev/lua-dadbod",
       name = "lua-dadbod",
-      config = function()
-        require("lua-dadbod").setup()
-      end,
+      lazy = false,
+      opts = {},
     }
 <
-`name` keeps lazy.nvim from using the repository folder name. The plugin
-is not published on a registry yet, so `dir` is required.
+lazy.nvim only tags installed plugins, so run `:helptags ~/dev/lua-dadbod/doc`
+once for local help.
 
 vim-dadbod, vim-dadbod-ui, and vim-dadbod-completion also define `:DB` and the
 `dbui` filetypes. Disable them while using lua-dadbod.

@@ -16,28 +16,41 @@ Full reference: `:help lua-dadbod`.
 
 ## Install with lazy.nvim
 
-Clone the repo:
+Add this to your lazy.nvim plugins:
 
-```sh
-git clone https://github.com/1Kanan1/lua-dadbod.nvim.git ~/dev/lua-dadbod
+```lua
+{
+  "1Kanan1/lua-dadbod.nvim",
+  lazy = false, -- registers :DB and the saved-query autocommands at startup
+  opts = {},
+}
 ```
 
-Add this to your lazy.nvim plugins. Change `dir` if you cloned it elsewhere:
+`opts` is passed to `require("lua-dadbod").setup()`. lazy.nvim installs the plugin
+under `~/.local/share/nvim/lazy/lua-dadbod.nvim` and generates its help tags, so
+`:help lua-dadbod` works after installation.
+
+Do not lazy-load it on `ft = "sql"` or `VeryLazy`: the saved-query autocommands
+must exist before the first SQL buffer is read, and `:DB` should be available
+immediately.
+
+Restart Neovim after adding it.
+
+### Local development
+
+To work on lua-dadbod itself, point lazy.nvim at your checkout instead:
 
 ```lua
 {
   dir = "~/dev/lua-dadbod",
   name = "lua-dadbod",
-  config = function()
-    require("lua-dadbod").setup()
-  end,
+  lazy = false,
+  opts = {},
 }
 ```
 
-The `name = "lua-dadbod"` field keeps lazy.nvim from using the repo folder name. The
-plugin is not published yet, so `dir` is expected.
-
-Restart Neovim after adding it.
+Local plugins are not tagged automatically, so run
+`:helptags ~/dev/lua-dadbod/doc` once to make `:help lua-dadbod` available.
 
 ## First run
 
