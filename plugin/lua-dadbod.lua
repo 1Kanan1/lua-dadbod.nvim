@@ -94,7 +94,6 @@ end, {
 command("LuaDadbodRenameBuffer", function()
     local util = require("lua-dadbod.util")
     local query = require("lua-dadbod.query")
-    local drawer = require("lua-dadbod.drawer")
     local bufnr = vim.api.nvim_get_current_buf()
     local meta = vim.b[bufnr].lua_dadbod
 
@@ -109,9 +108,7 @@ command("LuaDadbodRenameBuffer", function()
             util.error(err)
             return
         end
-        if drawer.is_open() then
-            drawer.render()
-        end
+        util.redraw_drawer()
     end)
 end, {
     desc = "Rename the current lua-dadbod saved query",
@@ -119,26 +116,21 @@ end, {
 
 command("LuaDadbodClearCache", function()
     local ui = require("lua-dadbod.ui")
-    local drawer = require("lua-dadbod.drawer")
+    local util = require("lua-dadbod.util")
     ui.clear_meta()
     refresh_expanded()
-    if drawer.is_open() then
-        drawer.render()
-    end
-    require("lua-dadbod.util").notify("cache cleared")
+    util.redraw_drawer()
+    util.notify("cache cleared")
 end, {
     desc = "Clear lua-dadbod metadata and completion caches",
 })
 
 command("LuaDadbodRefresh", function()
     local ui = require("lua-dadbod.ui")
-    local drawer = require("lua-dadbod.drawer")
     ui.clear_meta()
     ui.refresh()
     refresh_expanded()
-    if drawer.is_open() then
-        drawer.render()
-    end
+    require("lua-dadbod.util").redraw_drawer()
 end, {
     desc = "Refresh lua-dadbod connections",
 })

@@ -1,0 +1,35 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        neovim:
+          - v0.10.4
+          - v0.11.4
+          - stable
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.neovim }}
+
+      - name: Show version
+        run: nvim --version | head -n 1
+
+      - name: Check sqlite3
+        run: sqlite3 --version
+
+      - name: Run tests
+        run: nvim --headless -u NONE -c "lua dofile('tests/run.lua')" -c "qa!"

@@ -1,0 +1,438 @@
+*lua-dadbod.txt*       SQL client for Neovim           *lua-dadbod*
+
+==============================================================================
+CONTENTS                                            *lua-dadbod-contents*
+
+    1. Introduction ............................ |lua-dadbod-introduction|
+    2. Requirements ............................ |lua-dadbod-requirements|
+    3. Installation ............................ |lua-dadbod-installation|
+    4. Commands ................................ |lua-dadbod-commands|
+    5. Drawer .................................. |lua-dadbod-drawer|
+    6. Query buffers ........................... |lua-dadbod-query-buffers|
+    7. Results ................................. |lua-dadbod-results|
+    8. Connections ............................. |lua-dadbod-connections|
+    9. Completion .............................. |lua-dadbod-completion|
+   10. Configuration ........................... |lua-dadbod-configuration|
+   11. Statusline .............................. |lua-dadbod-statusline|
+   12. Events .................................. |lua-dadbod-events|
+   13. Lua API ................................. |lua-dadbod-api|
+   14. Migration from vim-dadbod ............... |lua-dadbod-migration|
+   15. Testing ................................. |lua-dadbod-testing|
+   16. License ................................. |lua-dadbod-license|
+
+==============================================================================
+1. INTRODUCTION                                     *lua-dadbod-introduction*
+
+lua-dadbod is a Neovim SQL client written in Lua. It replaces vim-dadbod,
+vim-dadbod-ui, and vim-dadbod-completion with one plugin and runs every query
+through the database's command line client: `sqlite3`, `psql`, or `mysql`.
+
+The drawer lists connections and tables. Query buffers run the statement under
+the cursor or a visual selection. Results open in a horizontal split and are
+rendered as aligned tables. Completion offers schemas, tables, columns, and
+stored bind parameters without leaving the editor.
+
+This is an early build. Interfaces can change.
+
+==============================================================================
+2. REQUIREMENTS                                     *lua-dadbod-requirements*
+
+- Neovim 0.10 or newer.
+- `sqlite3` on `$PATH` for SQLite.
+- `psql` on `$PATH` for PostgreSQL.
+- `mysql` on `$PATH` for MySQL and MariaDB.
+
+Blink is optional and only needed for the Blink completion source.
+
+==============================================================================
+3. INSTALLATION                                     *lua-dadbod-installation*
+
+Clone the repository and point lazy.nvim at the directory: >
+
+    git clone https://github.com/1Kanan1/lua-dadbod.nvim ~/dev/lua-dadbod
+<
+~/.config/nvim/lua/plugins/lua-dadbod.lua: >
+
+    {
+      dir = "~/dev/lua-dadbod",
+      name = "lua-dadbod",
+      config = function()
+        require("lua-dadbod").setup()
+      end,
+    }
+<
+`name` keeps lazy.nvim from using the repository folder name. The plugin
+is not published on a registry yet, so `dir` is required.
+
+vim-dadbod, vim-dadbod-ui, and vim-dadbod-completion also define `:DB` and the
+`dbui` filetypes. Disable them while using lua-dadbod.
+
+==============================================================================
+4. COMMANDS                                             *lua-dadbod-commands*
+
+:DB [url] [query]                                             *:DB*
+        Run SQL through the adapter for {url}. Without {url} the connection
+        comes from the current buffer: `b:lua_dadbod`, `b:db`, `g:db`, then
+        `$DATABASE_URL`.
+
+        :DB                   interactive console for the current buffer
+        :DB {url}             interactive console for {url}
+        :DB {url} {query}     run {query} against {url}
+        :DB {query}           run against the current buffer
+        :'<,'>DB [{url}]      run the selected lines
+        :DB < {file}          run the contents of {file}
+        :DB! ...              start a new result buffer even if the current
+                              one is still running
+
+        A trailing newline is added to the SQL when missing. DDL and plain
+        DML show their command tag as plain output instead of a table.
+
+                                                        *:LuaDadbod*
+:LuaDadbod              Open the drawer.
+:LuaDadbodToggle        Toggle the drawer.
+:LuaDadbodClose         Close the drawer.
+:LuaDadbodAddConnection Add a connection through the form.
+:LuaDadbodFindBuffer    Attach the current buffer to a connection.
+:LuaDadbodRenameBuffer  Rename the current saved query.
+:LuaDadbodClearCache    Clear metadata and completion caches.
+:LuaDadbodRefresh       Discard connection state and reload the drawer.
+
+The default mappings below call the same code. See
+|lua-dadbod-configuration| for turning them off or rebinding them.
+
+==============================================================================
+5. DRAWER                                                 *lua-dadbod-drawer*
+
+The drawer is a `nofile` window on the left or right. Connection rows expand
+into tables, or into schemas and then tables. SQLite skips the schema level.
+PostgreSQL and MySQL/MariaDB show schemas. Tables start collapsed. Scratchpads
+and History live at the bottom and also start collapsed.
+
+Connection keys ~
+                                                            *lua-dadbod-drawer-keys*
+    <CR>, o     Activate the row. On a table: preview the first rows.
+    S           Open the row in a vertical split.
+    n           Create a scratchpad for the active connection.
+    e           Open the table's List query in an editable buffer.
+    C           Preview the table's Columns helper.
+    A           Add a connection.
+    r           Rename the scratchpad under the cursor.
+    d           Delete a scratchpad, history entry, or file connection.
+    R           Refetch metadata for the current connection.
+    H           Toggle the connection source details.
+    q           Close the drawer.
+    ?           Toggle the key help.
+
+Enter on a connection activates it and expands it. Enter on a schema expands
+it. Enter on a table only previews; use `e` for an editable query. The active
+connection keeps a `●` marker for the session and is the target for `n`.
+
+When only one DBMS is configured, names appear without a prefix. With more
+than one, rows read `dbms/name`, for example `postgres/shop`.
+
+==============================================================================
+6. QUERY BUFFERS                                   *lua-dadbod-query-buffers*
+
+Opening a table or scratchpad creates a buffer in
+`stdpath("cache")/lua-dadbod/queries`. Query buffers have filetype `sql` and
+carry their connection in `b:lua_dadbod`.
+
+                                                        *lua-dadbod-query-keys*
+    <CR>            Run the statement under the cursor.
+    <CR> (visual)   Run the selection.
+    <Leader>S       Run the whole buffer.
+    <Leader>S (visual)  Run the selection.
+    <Leader>W       Save the buffer as a named query.
+    <Leader>E       Edit bind parameters.
+
+The statement splitter understands `;` outside strings and comments, line
+comments (`--` and MySQL `#`), nested PostgreSQL block comments, and
+dollar-quoted strings. Only the statement under the cursor runs.
+
+Bind parameters use `bind_param_pattern` (default `:%w+`). Missing values are
+prompted once and stored in `b:lua_dadbod.bind` for later runs. `:name` inside
+a single-quoted string, or after another colon (a cast), is not treated as a
+parameter.
+
+`:LuaDadbodRenameBuffer` and `<Leader>W` use query names, not paths. A `.sql`
+extension is added when missing.
+
+==============================================================================
+7. RESULTS                                               *lua-dadbod-results*
+
+Results open in a horizontal split below the query buffer and are reused until
+they are closed. Opening a second result reuses the same window.
+
+The first line is a status header: connection, state, row count, elapsed time,
+and exit code. CSV and TSV output is parsed and rendered as an aligned table
+with `NULL` shown literally and long cells trimmed with `…`. Other output,
+such as a DDL command tag, is shown as-is. `stderr` output is appended under
+a `-- stderr` heading. Output is capped at `result.max_lines`.
+
+                                                        *lua-dadbod-result-keys*
+    R           Rerun the query that produced this result.
+    <C-c>       Cancel the running query.
+    q           Close the result window.
+
+A new run in the same result buffer bumps a generation counter, so a late
+callback from a cancelled run cannot overwrite newer output.
+
+==============================================================================
+8. CONNECTIONS                                     *lua-dadbod-connections*
+
+Connections are collected from these sources:
+
+    1. `$LUA_DADBOD_URL`, named by `$LUA_DADBOD_NAME`.
+    2. `g:db`, shown as "default".
+    3. `g:dbs`, a name to URL mapping or a list of `{ name, url }` tables.
+    4. The `dbs` option passed to `setup()`.
+    5. `stdpath("data")/lua-dadbod/connections.json`.
+
+`g:dbs` values and the `dbs` option can be functions that return a URL. Names
+that collide inside one source keep the first entry and warn once.
+
+connections.json holds an array of objects: >
+
+    [
+      { "name": "shop", "url": "postgresql://shop@localhost/shop" },
+      { "name": "scratch", "url": "sqlite:/tmp/scratch.db" }
+    ]
+<
+`A` and `:LuaDadbodAddConnection` append to this file. Only entries from this
+file can be deleted with `d`.
+
+Password handling: put the password in the URL, use the CLI's own
+configuration file (`~/.pgpass`, `~/.my.cnf`), or set the adapter's
+environment variable. lua-dadbod never stores passwords separately.
+
+URL forms: >
+
+    sqlite:/absolute/path/file.db
+    sqlite::memory:
+    postgresql://user:password@host:5432/database
+    mysql://user:password@host:3306/database
+<
+`postgres://` and `sqlite3:` are accepted as aliases. `$VAR` in a URL is
+expanded from the environment before parsing.
+
+Saved queries live under `stdpath("data")/lua-dadbod/queries/` in a folder
+named after the connection. Connections whose names produce the same slug get
+the source appended, for example `shop-file` and `shop-config`.
+
+==============================================================================
+9. COMPLETION                                       *lua-dadbod-completion*
+
+Completion is cache-only on the keystroke path. It never starts a process.
+A cold cache returns what is known and fetches the rest in the background, so
+the first completion after opening a buffer can be empty; the next keystroke
+shows the items.
+
+Contexts and items:
+
+    `alias.` or `table.`   columns of that table
+    `schema.`              tables in that schema
+    after FROM/JOIN/INTO/UPDATE/TABLE, or a comma in a FROM/JOIN list
+                           tables, then schemas
+    `:name`                stored bind parameters
+    any other bare word    nothing
+
+Tables are never offered in `SELECT` lists, `WHERE` clauses, or empty buffers.
+Completion does not suggest SQL keywords.
+
+Blink requires a provider. This is the whole setup: >
+
+    {
+      "saghen/blink.cmp",
+      opts = {
+        sources = {
+          per_filetype = { sql = { inherit_defaults = true, "dadbod" } },
+          providers = {
+            dadbod = {
+              name = "LuaDadbod",
+              module = "lua-dadbod.completion_blink",
+              min_keyword_length = function(ctx)
+                return require("lua-dadbod.completion").min_keyword_length(ctx)
+              end,
+            },
+          },
+        },
+      },
+    }
+<
+Blink does not open on whitespace. Type the first letter of a table after
+`FROM `, or press `<C-space>`: `min_keyword_length()` returns 0 for a manual
+open in a table position.
+
+Omni is opt-in: >
+
+    require("lua-dadbod").setup({ completion = { omnifunc = true } })
+<
+Then `<C-x><C-o>` completes from the cache. It returns nothing on a cold
+cache.
+
+Columns for up to three tables referenced in a buffer are prefetched 300 ms
+after the buffer is opened or attached. `:LuaDadbodClearCache` clears them
+with the rest of the metadata.
+
+==============================================================================
+10. CONFIGURATION                                *lua-dadbod-configuration*
+
+setup() takes a table. Only the keys you pass are validated and merged over
+the defaults: >
+
+    require("lua-dadbod").setup({
+      win = { width = 40, position = "left" },
+      completion = { omnifunc = true },
+    })
+<
+Defaults ~
+                                                          *lua-dadbod-defaults*
+    save_location          stdpath("data") .. "/lua-dadbod"
+    tmp_location           stdpath("cache") .. "/lua-dadbod/queries"
+    win.width              40
+    win.position           "left" or "right"
+    default_query          "select * from {optional_schema}{table} limit 50;"
+    execute_on_save        false
+    auto_execute_helpers   true
+    bind_param_pattern     ":%w+"
+    table_helpers          {}
+    dbs                    nil
+    completion.enabled     true
+    completion.omnifunc    false
+    completion.prefetch    true
+    completion.max_items   200
+    result.max_lines       10000
+    result.height          0.4
+    icons                  Nerd Font glyph table; `false` disables icons
+    mappings               table, or `false` to install none
+
+Mapping sections: `mappings.enabled`, `mappings.global`, `mappings.drawer`,
+`mappings.query`, `mappings.result`. Setting a section to `false` leaves that
+buffer type without the default maps. The query and drawer maps are buffer
+local; the `<leader>D*` maps are global.
+
+Table helpers ~
+                                                     *lua-dadbod-table-helpers*
+`table_helpers` overrides or extends the SQL templates below per adapter name.
+Available placeholders: `{table}`, `{schema}`, `{optional_schema}`,
+`{dbname}`, and their quoted-literal forms `{table_lit}`, `{schema_lit}`,
+`{dbname_lit}`. `{optional_schema}` is empty for the adapter's default
+schema. An empty string removes a helper.
+
+The core adapters ship `List` and `Columns`. Other helpers, such as indexes or
+foreign keys, are configuration snippets; this plugin does not ship them.
+
+Data and cache paths ~
+                                                     *lua-dadbod-data-paths*
+    stdpath("data")/lua-dadbod/connections.json
+    stdpath("data")/lua-dadbod/queries/<folder>/*.sql
+    stdpath("cache")/lua-dadbod/queries/*.sql
+
+==============================================================================
+11. STATUSLINE                                     *lua-dadbod-statusline*
+
+`statusline()` reads the current buffer and returns a string: >
+
+    require("lua-dadbod").statusline()
+    -- "DB: shop > public > orders"
+<
+Options: >
+
+    require("lua-dadbod").statusline({
+      prefix = "DB: ",
+      separator = " > ",
+      show = { "db_name", "schema", "table" },
+    })
+<
+It returns an empty string for buffers without connection metadata.
+
+==============================================================================
+12. EVENTS                                             *lua-dadbod-events*
+
+                                                          *LuaDadbodQueryPre*
+LuaDadbodQueryPre is fired after the result buffer is ready and before the
+process starts. Data: `conn`, `sql`.
+
+                                                         *LuaDadbodQueryPost*
+LuaDadbodQueryPost is fired after the process exits. Data: `conn`, `sql`,
+`code`, `elapsed`, `timed_out`.
+
+==============================================================================
+13. LUA API                                               *lua-dadbod-api*
+
+setup(opts)                  Merge and validate options.
+open()                       Open the drawer.
+toggle()                     Toggle the drawer.
+close()                      Close the drawer.
+add_connection(opts, cb)     Open the form (or save directly with a URL).
+attach(bufnr)                Attach a buffer to a connection.
+connections()                List discovered connections.
+get_connection(key)          One connection by key.
+run(sql, opts, cb)           Run SQL in a result buffer.
+statusline(opts)             Statusline string for the current buffer.
+clear_cache()                Clear metadata and completion caches.
+refresh()                    Discard connection state and reload the drawer.
+
+`run()` options: `bufnr`, `conn`, `conn_url`, `conn_key`, `name`, `bang`,
+`timeout`, `callback`. It returns the result buffer, an error, and the job
+handle.
+
+The modules are reachable as `require("lua-dadbod.url")`,
+`require("lua-dadbod.db")`, and `require("lua-dadbod.adapters")`; aliases are
+exposed as `require("lua-dadbod").url`, `.db`, and `.adapters`.
+
+==============================================================================
+14. MIGRATION FROM VIM-DADBOD                     *lua-dadbod-migration*
+
+    Old                              New
+    :DBUI                            :LuaDadbod
+    :DBUIToggle                      :LuaDadbodToggle
+    :DBUIClose                       :LuaDadbodClose
+    :DBUIAddConnection               :LuaDadbodAddConnection
+    :DBUIFindBuffer                  :LuaDadbodFindBuffer
+    :DBUIRenameBuffer                :LuaDadbodRenameBuffer
+    :DBCompletionClearCache          :LuaDadbodClearCache
+    g:db_ui_* options                setup(opts)
+    g:dbs, g:db                      unchanged
+    $DBUI_URL, $DBUI_NAME            $LUA_DADBOD_URL, $LUA_DADBOD_NAME
+    ~/.local/share/db_ui             stdpath("data")/lua-dadbod
+    dbui, dbout filetypes            lua_dadbod, lua_dadbod_result
+    <Plug>(DBUI_*) mappings          buffer maps from configuration
+
+`:DB` keeps its familiar forms. Saved queries are not migrated automatically.
+Copy them into `queries/<folder>/` or point `save_location` at the old folder
+until the move is done.
+
+==============================================================================
+15. TESTING                                             *lua-dadbod-testing*
+
+Automated suite (needs `sqlite3` on `$PATH`; no server): >
+
+    nvim --headless -u NONE -c "lua dofile('tests/run.lua')" -c "qa!"
+<
+Manual checklist ~
+                                                     *lua-dadbod-manual-checks*
+
+    1. Connect      Drawer lists the connection; expanding it loads tables.
+    2. Browse       PostgreSQL and MySQL show schemas; SQLite goes straight to
+                    tables.
+    3. Run          Enter on a table previews rows in a result split.
+    4. Edit         `e` opens the List query; <CR> runs it.
+    5. Cancel       A slow query stops with <C-c> and reports "aborted".
+    6. Rerun        `R` in the result buffer replaces the output.
+    7. Save         <Leader>W writes a file under queries/<folder>/.
+    8. Reopen       A new session finds the saved query in Scratchpads.
+    9. Bind         `:name` prompts once, then reuses the stored value.
+   10. Complete     `alias.` lists columns; `FROM ` plus <C-space> lists
+                    tables.
+
+Adapter coverage: SQLite is exercised by the automated suite. PostgreSQL is
+verified against a local server. MySQL/MariaDB has argv and helper unit tests
+only; the repository has no server to test against.
+
+==============================================================================
+16. LICENSE                                               *lua-dadbod-license*
+
+MIT. See the LICENSE file in the repository.
+
+vim:tw=78:ts=8:ft=help:norl:

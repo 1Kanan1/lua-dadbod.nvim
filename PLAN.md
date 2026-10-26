@@ -929,3 +929,32 @@ Result: 140 passed, 0 failed. Manual checks against
 `postgres://postgres@localhost/test` returned the five `orders` columns at `o.`,
 four tables and no schemas after `FROM `, 69 tables after `information_schema.`,
 and 144 after `pg_catalog.`.
+
+## Phase 6 checkpoint
+
+Implemented:
+
+- PostgreSQL and MySQL/MariaDB adapters, with metadata SQL, `List` and
+  `Columns` helpers, and interactive console support.
+- README: install, first run, commands, keys, completion, configuration,
+  migration, status, and license.
+- `doc/lua-dadbod.txt`: the full `:help` reference for commands, drawer and
+  buffer keys, connections, completion, defaults, the Lua API, events,
+  migration, and the manual checklist.
+- Migration table from vim-dadbod in both README and the vimdoc.
+- MIT license.
+- GitHub Actions running the suite on Neovim 0.10, 0.11, and stable.
+- `doc/tags` ignored, because plugin managers generate it on install.
+
+Verification:
+
+```
+nvim --headless -u NONE -c "lua dofile('tests/run.lua')" -c "qa!"
+```
+
+Result: 140 passed, 0 failed. `:help lua-dadbod` opens after `:helptags doc`,
+every internal tag reference resolves, and no tag is defined twice.
+
+Not done: this machine has no MySQL/MariaDB server or `mysql` client, so that
+adapter has argv and helper unit tests only. It is documented as untested
+rather than claimed working.
