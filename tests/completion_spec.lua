@@ -319,6 +319,43 @@ h.test("build completion items from the cache", function()
     cleanup(url, path, { bufnr })
 end)
 
+h.test("schema items carry the configured schema icon", function()
+    local bufnr = vim.api.nvim_create_buf(false, true)
+    local original_tables = db.cached_tables
+    local original_schemas = db.cached_schemas
+
+    db.cached_tables = function()
+        return {}
+    end
+    db.cached_schemas = function()
+        return { "public" }
+    end
+
+    local function schema_item()
+        local items = completion.items_for({
+            kind = "bare",
+            position = true,
+            url = "sqlite::memory:",
+            bufnr = bufnr,
+            adapter = { name = "sqlite", quote = { '"', '"' } },
+        })
+        return items[1]
+    end
+
+    local item = schema_item()
+    h.eq(item.label, "public")
+    h.eq(item.kind, 1)
+    h.eq(item.kind_icon, config.get().icons.schema)
+
+    config.setup({ icons = false })
+    h.is_nil(schema_item().kind_icon)
+
+    config.setup()
+    db.cached_tables = original_tables
+    db.cached_schemas = original_schemas
+    pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
+end)
+
 h.test("blink source answers synchronously", function()
     local url, path = make_database()
     load_columns(url)

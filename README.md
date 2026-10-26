@@ -172,7 +172,8 @@ its tables and `pg_catalog.` does the same, but those tables are not mixed into
 the unqualified list.
 
 Completion covers schemas, tables, columns, and bind parameters. It does not
-suggest SQL keywords.
+suggest SQL keywords. Schema entries use the drawer's schema glyph
+(`icons.schema`) as their Blink menu icon.
 
 ### Omni
 

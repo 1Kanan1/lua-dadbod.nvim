@@ -472,18 +472,22 @@ local function quote_ident(adapter, name)
     return open .. name:gsub(close, close .. close) .. close
 end
 
-local function push(items, max, adapter, name, kind, detail, score)
+local function push(items, max, adapter, name, kind, detail, opts)
     if #items >= max or type(name) ~= "string" or name == "" then
         return
     end
+    opts = opts or {}
     local item = {
         label = name,
         kind = kind,
         detail = detail,
         insertText = quote_ident(adapter, name),
     }
-    if score then
-        item.score_offset = score
+    if opts.score then
+        item.score_offset = opts.score
+    end
+    if opts.icon and opts.icon ~= "" then
+        item.kind_icon = opts.icon
     end
     items[#items + 1] = item
 end
@@ -492,6 +496,7 @@ function M.items_for(context)
     local max = config.get().completion.max_items or 200
     local items = {}
     local adapter = context.adapter
+    local icons = config.get().icons or {}
 
     local function add_tables(schema, detail)
         local tables = db.cached_tables(context.url, schema)
@@ -499,7 +504,7 @@ function M.items_for(context)
             db.fetch_tables(context.url, schema, noop)
         end
         for _, name in ipairs(tables or {}) do
-            push(items, max, adapter, name, KIND_MODULE, detail, TABLE_SCORE_OFFSET)
+            push(items, max, adapter, name, KIND_MODULE, detail, { score = TABLE_SCORE_OFFSET })
         end
     end
 
@@ -509,7 +514,7 @@ function M.items_for(context)
             db.fetch_schemas(context.url, noop)
         end
         for _, name in ipairs(schemas or {}) do
-            push(items, max, adapter, name, KIND_TEXT, "schema")
+            push(items, max, adapter, name, KIND_TEXT, "schema", { icon = icons.schema })
         end
     end
 

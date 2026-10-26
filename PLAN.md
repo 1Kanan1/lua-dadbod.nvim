@@ -906,6 +906,9 @@ Implemented:
   character or in a table position, so `<C-space>` lists tables right after
   `FROM `. Blink does not open on whitespace by itself.
 - `completion_blink.lua`: a Blink source that answers synchronously from cache.
+- Schema items set Blink's `kind_icon` to the drawer's `icons.schema` glyph, so
+  they show a schema icon instead of the generic Text icon. `icons = false`
+  removes the override.
 - Opt-in Omni via `completion.omnifunc = true`.
 - Prefetch of up to three referenced tables 300 ms after opening or attaching a
   buffer.
@@ -925,7 +928,7 @@ Verification:
 nvim --headless -u NONE -c "lua dofile('tests/run.lua')" -c "qa!"
 ```
 
-Result: 140 passed, 0 failed. Manual checks against
+Result: 141 passed, 0 failed. Manual checks against
 `postgres://postgres@localhost/test` returned the five `orders` columns at `o.`,
 four tables and no schemas after `FROM `, 69 tables after `information_schema.`,
 and 144 after `pg_catalog.`.
@@ -952,7 +955,7 @@ Verification:
 nvim --headless -u NONE -c "lua dofile('tests/run.lua')" -c "qa!"
 ```
 
-Result: 140 passed, 0 failed. `:help lua-dadbod` opens after `:helptags doc`,
+Result: 141 passed, 0 failed. `:help lua-dadbod` opens after `:helptags doc`,
 every internal tag reference resolves, and no tag is defined twice.
 
 Not done: this machine has no MySQL/MariaDB server or `mysql` client, so that
