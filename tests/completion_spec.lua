@@ -36,34 +36,31 @@ local function make_database()
     return url, path
 end
 
-local function load_columns(url)
-    local columns
+local function load(fetch, label)
+    local value
     local failure
 
-    db.fetch_columns(url, { table = "users" }, function(value, err)
-        columns = value
+    fetch(function(result, err)
+        value = result
         failure = err
     end)
 
     h.ok(wait_for(function()
-        return columns ~= nil
-    end), failure or "column metadata timed out")
-    return columns
+        return value ~= nil
+    end), failure or label .. " metadata timed out")
+    return value
+end
+
+local function load_columns(url)
+    return load(function(callback)
+        db.fetch_columns(url, { table = "users" }, callback)
+    end, "column")
 end
 
 local function load_tables(url)
-    local tables
-    local failure
-
-    db.fetch_tables(url, nil, function(value, err)
-        tables = value
-        failure = err
-    end)
-
-    h.ok(wait_for(function()
-        return tables ~= nil
-    end), failure or "table metadata timed out")
-    return tables
+    return load(function(callback)
+        db.fetch_tables(url, nil, callback)
+    end, "table")
 end
 
 local function cleanup(url, path, buffers)

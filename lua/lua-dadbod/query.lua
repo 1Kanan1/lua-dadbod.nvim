@@ -7,6 +7,14 @@ local util = require("lua-dadbod.util")
 
 local M = {}
 
+-- Rows for the drawer help float, kept next to the mappings they describe.
+M.help_keys = {
+    { "<CR>", "run statement under cursor (visual: selection)" },
+    { "<Leader>S", "run whole buffer (visual: selection)" },
+    { "<Leader>W", "save as a named query" },
+    { "<Leader>E", "edit bind parameters" },
+}
+
 local function connection_parts(connection)
     if type(connection) == "string" then
         return connection, nil
@@ -245,12 +253,7 @@ local function apply_connection_meta(bufnr, ctx, opts)
 end
 
 local function refresh_drawer()
-    vim.schedule(function()
-        local drawer = package.loaded["lua-dadbod.drawer"]
-        if drawer and drawer.is_open() then
-            pcall(drawer.render)
-        end
-    end)
+    vim.schedule(util.redraw_drawer)
 end
 
 local function remove_broken_sql_maps(bufnr)
@@ -567,10 +570,7 @@ function M.save_as(bufnr, name)
     meta.path = vim.api.nvim_buf_get_name(bufnr)
     vim.b[bufnr].lua_dadbod = meta
 
-    local drawer = package.loaded["lua-dadbod.drawer"]
-    if drawer and drawer.is_open() then
-        pcall(drawer.render)
-    end
+    util.redraw_drawer()
 
     return meta.path
 end

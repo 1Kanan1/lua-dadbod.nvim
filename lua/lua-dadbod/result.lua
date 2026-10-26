@@ -179,7 +179,6 @@ function M.open(opts)
         format = opts.format,
         returns_rows = opts.returns_rows == true,
         status = "running",
-        started = util.now_ns(),
         generation = 1,
     })
     set_lines(bufnr, { header(bufnr) })
@@ -214,7 +213,6 @@ function M.reset(bufnr, opts)
     meta.format = opts.format or meta.format
     meta.returns_rows = opts.returns_rows == true
     meta.status = "running"
-    meta.started = util.now_ns()
     meta.code = nil
     meta.elapsed = nil
     meta.rows = nil
@@ -328,14 +326,6 @@ function M.keymaps(bufnr)
     vim.keymap.set("n", "<C-c>", function()
         M.cancel(bufnr)
     end, { buffer = bufnr, silent = true, nowait = true, desc = "Cancel lua-dadbod query" })
-end
-
-function M.header(bufnr)
-    return header(bufnr)
-end
-
-function M.lines(bufnr, result)
-    return result_lines(bufnr, result)
 end
 
 return M

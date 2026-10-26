@@ -74,8 +74,4 @@ function M.columns_sql(ctx)
         .. " order by ordinal_position"
 end
 
-function M.supports_schemas()
-    return true
-end
-
 return M

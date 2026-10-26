@@ -139,6 +139,14 @@ function M.is_open()
     return win ~= nil
 end
 
+-- Render only when the drawer window exists.
+function M.redraw()
+    if not M.is_open() then
+        return
+    end
+    M.render()
+end
+
 local function drawer_windows()
     local wins = {}
     for _, win in ipairs(vim.api.nvim_list_wins()) do
@@ -586,9 +594,7 @@ function M.fetch_schemas(entry)
             end
             current.schema_state = states
         end
-        if M.is_open() then
-            M.render()
-        end
+        M.redraw()
     end)
 end
 
@@ -621,9 +627,7 @@ function M.fetch_schema_tables(entry, schema)
             current_state.tables = tables or {}
             current_state.loaded = true
         end
-        if M.is_open() then
-            M.render()
-        end
+        M.redraw()
     end)
 end
 
@@ -657,9 +661,7 @@ function M.fetch(entry)
             else
                 current.tables = tables or {}
             end
-            if M.is_open() then
-                M.render()
-            end
+            M.redraw()
         end)
     end
 end
@@ -693,9 +695,7 @@ function M.open_table(entry, table_name, helper, mode, schema, opts)
         util.error(err)
         return
     end
-    if M.is_open() then
-        M.render()
-    end
+    M.redraw()
 end
 
 function M.preview_table(entry, table_name, helper, schema)
@@ -859,9 +859,7 @@ function M.open_scratch(item, mode)
         util.error(err)
         return
     end
-    if M.is_open() then
-        M.render()
-    end
+    M.redraw()
 end
 
 local function row_connection(row)
@@ -929,9 +927,7 @@ function M.open_new_scratchpad(entry)
         util.error(err)
         return
     end
-    if M.is_open() then
-        M.render()
-    end
+    M.redraw()
 end
 
 function M.columns()
@@ -1096,12 +1092,7 @@ function M.help()
     end
 
     entries[#entries + 1] = { section = "Query buffer" }
-    for _, item in ipairs({
-        { "<CR>", "run statement under cursor (visual: selection)" },
-        { "<Leader>S", "run whole buffer (visual: selection)" },
-        { "<Leader>W", "save as a named query" },
-        { "<Leader>E", "edit bind parameters" },
-    }) do
+    for _, item in ipairs(query.help_keys) do
         entries[#entries + 1] = item
     end
 

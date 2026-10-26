@@ -1,17 +1,17 @@
 local M = {}
 
-local global_keys = {
-    "<leader>Do",
-    "<leader>Dt",
-    "<leader>Dc",
-    "<leader>Da",
-    "<leader>Df",
-    "<leader>Dx",
+local global_mappings = {
+    { "<leader>Do", "lua-dadbod: open drawer", function() require("lua-dadbod.drawer").open() end },
+    { "<leader>Dt", "lua-dadbod: toggle drawer", function() require("lua-dadbod.drawer").toggle() end },
+    { "<leader>Dc", "lua-dadbod: close drawer", function() require("lua-dadbod.drawer").close() end },
+    { "<leader>Da", "lua-dadbod: add connection", function() M.add_connection() end },
+    { "<leader>Df", "lua-dadbod: attach buffer", function() M.attach() end },
+    { "<leader>Dx", "lua-dadbod: clear cache", function() M.clear_cache() end },
 }
 
 local function remove_global_mappings()
-    for _, lhs in ipairs(global_keys) do
-        pcall(vim.keymap.del, "n", lhs)
+    for _, item in ipairs(global_mappings) do
+        pcall(vim.keymap.del, "n", item[1])
     end
 end
 
@@ -21,28 +21,9 @@ function M.setup_mappings()
         return
     end
 
-    local function map(lhs, callback, desc)
-        vim.keymap.set("n", lhs, callback, { desc = desc })
+    for _, item in ipairs(global_mappings) do
+        vim.keymap.set("n", item[1], item[3], { desc = item[2] })
     end
-
-    map("<leader>Do", function()
-        require("lua-dadbod.drawer").open()
-    end, "lua-dadbod: open drawer")
-    map("<leader>Dt", function()
-        require("lua-dadbod.drawer").toggle()
-    end, "lua-dadbod: toggle drawer")
-    map("<leader>Dc", function()
-        require("lua-dadbod.drawer").close()
-    end, "lua-dadbod: close drawer")
-    map("<leader>Da", function()
-        M.add_connection()
-    end, "lua-dadbod: add connection")
-    map("<leader>Df", function()
-        M.attach()
-    end, "lua-dadbod: attach buffer")
-    map("<leader>Dx", function()
-        M.clear_cache()
-    end, "lua-dadbod: clear cache")
 
     local ok, which_key = pcall(require, "which-key")
     if ok and type(which_key.add) == "function" then
@@ -72,10 +53,7 @@ end
 
 function M.add_connection(opts, callback)
     return require("lua-dadbod.ui").add_connection(opts, function()
-        local drawer = require("lua-dadbod.drawer")
-        if drawer.is_open() then
-            drawer.render()
-        end
+        require("lua-dadbod.util").redraw_drawer()
         if callback then
             callback()
         end
@@ -163,20 +141,14 @@ end
 
 function M.clear_cache()
     require("lua-dadbod.ui").clear_meta()
-    local drawer = require("lua-dadbod.drawer")
-    if drawer.is_open() then
-        drawer.render()
-    end
+    require("lua-dadbod.util").redraw_drawer()
 end
 
 function M.refresh()
     local ui = require("lua-dadbod.ui")
     ui.clear_meta()
     ui.refresh()
-    local drawer = require("lua-dadbod.drawer")
-    if drawer.is_open() then
-        drawer.render()
-    end
+    require("lua-dadbod.util").redraw_drawer()
 end
 
 M.url = require("lua-dadbod.url")

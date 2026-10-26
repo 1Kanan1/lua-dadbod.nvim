@@ -105,11 +105,4 @@ function M.cancel(handle)
     return ok
 end
 
-function M.wait(handle, timeout)
-    if not handle or not handle.obj then
-        return nil
-    end
-    return handle.obj:wait(timeout)
-end
-
 return M

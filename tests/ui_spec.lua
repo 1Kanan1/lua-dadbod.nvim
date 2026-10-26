@@ -20,6 +20,24 @@ local function restore_globals(previous, directory)
     end
 end
 
+local function row_line(drawer, predicate)
+    for index, row in ipairs(drawer.rows) do
+        if predicate(row) then
+            return index
+        end
+    end
+end
+
+local function find_rows(drawer, predicate)
+    local found = {}
+    for _, row in ipairs(drawer.rows) do
+        if predicate(row) then
+            found[#found + 1] = row
+        end
+    end
+    return found
+end
+
 h.test("ui discovers all connection sources", function()
     local previous = {
         db = vim.g.db,
@@ -613,21 +631,13 @@ h.test("drawer expands a connection and opens a table", function()
         return entry and entry.loaded
     end), "table metadata did not load")
 
-    local visible_table = false
-    for _, row in ipairs(drawer.rows) do
-        if row.kind == "table" then
-            visible_table = true
-        end
-    end
-    h.eq(visible_table, false)
+    h.is_nil(row_line(drawer, function(row)
+        return row.kind == "table"
+    end))
 
-    local scratch_line
-    for index, row in ipairs(drawer.rows) do
-        if row.kind == "section" and row.section == "scratchpads" then
-            scratch_line = index
-        end
-    end
-    h.ok(scratch_line, "Scratchpads section not found")
+    local scratch_line = h.ok(row_line(drawer, function(row)
+        return row.kind == "section" and row.section == "scratchpads"
+    end), "Scratchpads section not found")
     local rows_before = #drawer.rows
     vim.api.nvim_win_set_cursor(0, { scratch_line, 0 })
     drawer.select("edit")
@@ -636,14 +646,9 @@ h.test("drawer expands a connection and opens a table", function()
     drawer.select("edit")
     h.eq(drawer.scratchpads_expanded, false)
 
-    local tables_line
-    for index, row in ipairs(drawer.rows) do
-        if row.kind == "section" and row.section == "tables" then
-            tables_line = index
-            break
-        end
-    end
-    h.ok(tables_line, "Tables section not found")
+    local tables_line = h.ok(row_line(drawer, function(row)
+        return row.kind == "section" and row.section == "tables"
+    end), "Tables section not found")
     vim.api.nvim_win_set_cursor(0, { tables_line, 0 })
     drawer.select("edit")
 
@@ -656,14 +661,9 @@ h.test("drawer expands a connection and opens a table", function()
     h.eq(text:find("New query", 1, true), nil)
     h.eq(text:find("Saved queries", 1, true), nil)
 
-    local table_line
-    for index, row in ipairs(drawer.rows) do
-        if row.kind == "table" and row.table == "users" then
-            table_line = index
-            break
-        end
-    end
-    h.ok(table_line, "table row not found")
+    local table_line = h.ok(row_line(drawer, function(row)
+        return row.kind == "table" and row.table == "users"
+    end), "table row not found")
 
     vim.api.nvim_win_set_cursor(0, { table_line, 0 })
     drawer.select("edit")
@@ -748,12 +748,9 @@ h.test("drawer loads schemas and schema tables", function()
 
     local drawer = require("lua-dadbod.drawer")
     drawer.open()
-    local conn_line
-    for index, row in ipairs(drawer.rows) do
-        if row.kind == "conn" then
-            conn_line = index
-        end
-    end
+    local conn_line = row_line(drawer, function(row)
+        return row.kind == "conn"
+    end)
     vim.api.nvim_win_set_cursor(0, { conn_line, 0 })
     drawer.select("edit")
 
@@ -763,13 +760,9 @@ h.test("drawer loads schemas and schema tables", function()
     end), "schemas did not load")
     h.eq(entry.schemas, { "other", "public" })
 
-    local schema_line
-    for index, row in ipairs(drawer.rows) do
-        if row.kind == "schema" and row.schema == "public" then
-            schema_line = index
-        end
-    end
-    h.ok(schema_line, "public schema row not found")
+    local schema_line = h.ok(row_line(drawer, function(row)
+        return row.kind == "schema" and row.schema == "public"
+    end), "public schema row not found")
     vim.api.nvim_win_set_cursor(0, { schema_line, 0 })
     drawer.select("edit")
 
@@ -779,22 +772,15 @@ h.test("drawer loads schemas and schema tables", function()
     end), "schema tables did not load")
     h.eq(state.tables, { "orders", "users" })
 
-    local tables_line
-    for index, row in ipairs(drawer.rows) do
-        if row.kind == "section" and row.section == "tables" and row.schema == "public" then
-            tables_line = index
-        end
-    end
-    h.ok(tables_line, "schema Tables section not found")
+    local tables_line = h.ok(row_line(drawer, function(row)
+        return row.kind == "section" and row.section == "tables" and row.schema == "public"
+    end), "schema Tables section not found")
     vim.api.nvim_win_set_cursor(0, { tables_line, 0 })
     drawer.select("edit")
 
-    local table_rows = {}
-    for _, row in ipairs(drawer.rows) do
-        if row.kind == "table" then
-            table_rows[#table_rows + 1] = row
-        end
-    end
+    local table_rows = find_rows(drawer, function(row)
+        return row.kind == "table"
+    end)
     h.eq(#table_rows, 2)
     h.eq(table_rows[1].table, "orders")
     h.eq(table_rows[2].table, "users")
@@ -812,13 +798,9 @@ h.test("drawer loads schemas and schema tables", function()
     end), "refetch did not finish")
     h.eq(state.expanded, true, "schema collapsed after refetch")
     h.eq(state.tables_expanded, true, "Tables collapsed after refetch")
-    local visible = false
-    for _, row in ipairs(drawer.rows) do
-        if row.kind == "table" and row.table == "users" then
-            visible = true
-        end
-    end
-    h.eq(visible, true, "table rows disappeared after refetch")
+    h.ok(row_line(drawer, function(row)
+        return row.kind == "table" and row.table == "users"
+    end), "table rows disappeared after refetch")
 
     adapter.tables_sql = function()
         return "select * from definitely_missing_table"
@@ -870,12 +852,9 @@ h.test("failed connections collapse and stay inactive", function()
 
     local drawer = require("lua-dadbod.drawer")
     drawer.open()
-    local conn_line
-    for index, row in ipairs(drawer.rows) do
-        if row.kind == "conn" then
-            conn_line = index
-        end
-    end
+    local conn_line = row_line(drawer, function(row)
+        return row.kind == "conn"
+    end)
     vim.api.nvim_win_set_cursor(0, { conn_line, 0 })
     drawer.select("edit")
 

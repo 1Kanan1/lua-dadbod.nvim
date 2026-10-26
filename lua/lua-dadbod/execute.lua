@@ -109,7 +109,7 @@ function M.run(sql, opts, callback)
 
         if metadata_change then
             local entry = ui.invalidate(canonical)
-            local drawer = package.loaded["lua-dadbod.drawer"]
+            local drawer = util.loaded_drawer()
             if drawer and drawer.is_open() then
                 if entry and entry.expanded then
                     drawer.refetch(entry)

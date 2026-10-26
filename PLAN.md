@@ -172,7 +172,6 @@ Each adapter is a table:
 ---@field binary string
 ---@field quote? { string, string }       -- nil means no identifier quoting
 ---@field default_schema? string
----@field supports_schemas? fun(url): boolean
 ---@field filetype? string                -- defaults to "sql"
 ---@field argv fun(url, opts): string[], table|nil
 ---@field interactive? fun(url): string[], table|nil

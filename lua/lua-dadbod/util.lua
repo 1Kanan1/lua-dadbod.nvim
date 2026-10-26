@@ -92,14 +92,6 @@ function M.is_executable(binary)
     return type(binary) == "string" and binary ~= "" and vim.fn.executable(binary) == 1
 end
 
-function M.now_ns()
-    return vim.uv.hrtime()
-end
-
-function M.elapsed_ms(start_ns)
-    return (vim.uv.hrtime() - start_ns) / 1e6
-end
-
 function M.split_lines(text)
     local normalized = tostring(text or ""):gsub("\r\n", "\n"):gsub("\r", "\n")
     local lines = vim.split(normalized, "\n", { plain = true })
@@ -223,12 +215,18 @@ function M.input(prompt, default, callback)
     end)
 end
 
-function M.select(items, prompt, callback)
-    vim.ui.select(items, { prompt = prompt }, function(item)
-        if item ~= nil then
-            callback(item)
-        end
-    end)
+-- The drawer module, but only when something has already loaded it. Callers
+-- that just want to keep the tree in sync must not pull it in themselves.
+function M.loaded_drawer()
+    return package.loaded["lua-dadbod.drawer"]
+end
+
+-- Redraw the drawer when it is loaded and open. Never loads it.
+function M.redraw_drawer()
+    local drawer = M.loaded_drawer()
+    if drawer then
+        pcall(drawer.redraw)
+    end
 end
 
 return M

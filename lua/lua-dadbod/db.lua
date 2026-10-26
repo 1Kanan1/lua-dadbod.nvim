@@ -5,12 +5,16 @@ local util = require("lua-dadbod.util")
 
 local M = {}
 
-local meta_cache = {
-    schemas = {},
-    tables = {},
-    columns = {},
-    loading = { schemas = {}, tables = {}, columns = {} },
-}
+local function empty_cache()
+    return {
+        schemas = {},
+        tables = {},
+        columns = {},
+        loading = { schemas = {}, tables = {}, columns = {} },
+    }
+end
+
+local meta_cache = empty_cache()
 
 local function parse_input(input)
     if type(input) == "table" then
@@ -178,61 +182,107 @@ local function column_key(key, schema, table)
     return key .. "\0" .. (schema or "") .. "\0" .. (table or "")
 end
 
-function M.fetch_schemas(input, callback)
-    if type(callback) ~= "function" then
-        error("lua-dadbod.db.fetch_schemas: callback must be a function")
-    end
-
+-- Canonical connection context shared by the metadata cache.
+local function metadata_target(input)
     local parsed, adapter = M.parse(input)
     if not parsed or not adapter then
-        callback(nil, adapter or "invalid connection URL")
-        return
+        return nil, adapter or "invalid connection URL"
     end
+    return { parsed = parsed, key = url.format(parsed), adapter = adapter }
+end
 
-    local key = url.format(parsed)
-    if not key then
-        callback(nil, "invalid connection URL")
-        return
-    end
-    if meta_cache.schemas[key] then
-        callback(vim.deepcopy(meta_cache.schemas[key]), nil)
-        return
-    end
-    if meta_cache.loading.schemas[key] then
-        table.insert(meta_cache.loading.schemas[key], callback)
-        return
-    end
-    if not adapter.schemas_sql then
-        callback(nil, "adapter has no schema metadata: " .. adapter.name)
-        return
-    end
+local function database_name(parsed)
+    return parsed.path and parsed.path:gsub("^/", "") or nil
+end
 
-    local ctx = {
-        schema = adapter.default_schema,
-        db = parsed.path and parsed.path:gsub("^/", "") or nil,
-    }
-    local ok, statement = pcall(adapter.schemas_sql, ctx)
+local function check_callback(name, callback)
+    if type(callback) ~= "function" then
+        error("lua-dadbod.db." .. name .. ": callback must be a function")
+    end
+end
+
+local function adapter_query(adapter, field, ctx)
+    local ok, statement = pcall(adapter[field], ctx)
     if not ok or type(statement) ~= "string" or util.trim(statement) == "" then
-        callback(nil, "adapter returned no schema metadata query: " .. adapter.name)
+        return nil
+    end
+    return statement
+end
+
+local function decode_columns(text)
+    local columns = {}
+    for _, row in ipairs(parse_rows(text)) do
+        if type(row[1]) == "string" and row[1] ~= "" then
+            columns[#columns + 1] = { name = row[1], type = row[2] or "" }
+        end
+    end
+    return columns
+end
+
+-- Cache lookup, coalescing, and error handling shared by every metadata kind.
+-- spec.build returns the adapter query for a connection context and spec.decode
+-- turns stdout into the cached value.
+local function read_metadata(ctx, spec, callback)
+    local cache = meta_cache[spec.kind]
+    local loading = meta_cache.loading[spec.kind]
+    local cache_key = spec.cache_key or ctx.key
+
+    if cache[cache_key] then
+        callback(vim.deepcopy(cache[cache_key]), nil)
+        return
+    end
+    if loading[cache_key] then
+        table.insert(loading[cache_key], callback)
+        return
+    end
+    if not ctx.adapter[spec.field] then
+        callback(nil, "adapter has no " .. spec.label .. " metadata: " .. ctx.adapter.name)
         return
     end
 
-    meta_cache.loading.schemas[key] = { callback }
+    local statement = spec.build(ctx)
+    if not statement then
+        callback(nil, "adapter returned no " .. spec.label .. " metadata query: " .. ctx.adapter.name)
+        return
+    end
 
-    local handle, err = M.run(key, statement, { meta = true }, function(result)
+    loading[cache_key] = { callback }
+
+    local handle, err = M.run(ctx.key, statement, { meta = true }, function(result)
         if result.code ~= 0 then
-            finish_loading("schemas", key, nil, metadata_error(result, "schema"))
+            finish_loading(spec.kind, cache_key, nil, metadata_error(result, spec.label))
             return
         end
-
-        local schemas = parse_lines(result.stdout)
-        meta_cache.schemas[key] = schemas
-        finish_loading("schemas", key, schemas, nil)
+        local items = spec.decode(result.stdout)
+        cache[cache_key] = items
+        finish_loading(spec.kind, cache_key, items, nil)
     end)
 
     if not handle then
-        finish_loading("schemas", key, nil, err)
+        finish_loading(spec.kind, cache_key, nil, err)
     end
+end
+
+function M.fetch_schemas(input, callback)
+    check_callback("fetch_schemas", callback)
+    local ctx, err = metadata_target(input)
+    if not ctx then
+        callback(nil, err)
+        return
+    end
+
+    read_metadata(ctx, {
+        kind = "schemas",
+        label = "schema",
+        field = "schemas_sql",
+        build = function(target)
+            return adapter_query(target.adapter, "schemas_sql", {
+                schema = target.adapter.default_schema,
+                db = database_name(target.parsed),
+            })
+        end,
+        decode = parse_lines,
+    }, callback)
 end
 
 function M.fetch_tables(input, schema, callback)
@@ -240,123 +290,67 @@ function M.fetch_tables(input, schema, callback)
         callback = schema
         schema = nil
     end
-    if type(callback) ~= "function" then
-        error("lua-dadbod.db.fetch_tables: callback must be a function")
-    end
-
-    local parsed, adapter = M.parse(input)
-    if not parsed or not adapter then
-        callback(nil, adapter or "invalid connection URL")
+    check_callback("fetch_tables", callback)
+    local ctx, err = metadata_target(input)
+    if not ctx then
+        callback(nil, err)
         return
     end
 
-    local key = url.format(parsed)
-    if not key then
-        callback(nil, "invalid connection URL")
-        return
-    end
-    local cache_key = key .. "\0" .. (schema or "")
-    if meta_cache.tables[cache_key] then
-        callback(vim.deepcopy(meta_cache.tables[cache_key]), nil)
-        return
-    end
-    if meta_cache.loading.tables[cache_key] then
-        table.insert(meta_cache.loading.tables[cache_key], callback)
-        return
-    end
-    if not adapter.tables_sql then
-        callback(nil, "adapter has no table metadata: " .. adapter.name)
-        return
-    end
-
-    local ctx = {
-        schema = schema or adapter.default_schema,
-        db = parsed.path and parsed.path:gsub("^/", "") or nil,
-    }
-    local ok, statement = pcall(adapter.tables_sql, ctx)
-    if not ok or type(statement) ~= "string" or util.trim(statement) == "" then
-        callback(nil, "adapter returned no table metadata query: " .. adapter.name)
-        return
-    end
-
-    meta_cache.loading.tables[cache_key] = { callback }
-
-    local handle, err = M.run(key, statement, { meta = true }, function(result)
-        if result.code ~= 0 then
-            finish_loading("tables", cache_key, nil, metadata_error(result, "table"))
-            return
-        end
-
-        local tables = parse_lines(result.stdout)
-        meta_cache.tables[cache_key] = tables
-        finish_loading("tables", cache_key, tables, nil)
-    end)
-
-    if not handle then
-        finish_loading("tables", cache_key, nil, err)
-    end
+    read_metadata(ctx, {
+        kind = "tables",
+        label = "table",
+        field = "tables_sql",
+        cache_key = ctx.key .. "\0" .. (schema or ""),
+        build = function(target)
+            return adapter_query(target.adapter, "tables_sql", {
+                schema = schema or target.adapter.default_schema,
+                db = database_name(target.parsed),
+            })
+        end,
+        decode = parse_lines,
+    }, callback)
 end
 
 -- Cache readers used by completion. They return the live cache entry instead
 -- of a copy, so callers must treat the result as read-only.
 function M.cached_schemas(input)
-    local parsed = M.parse(input)
-    if not parsed then
+    local ctx = metadata_target(input)
+    if not ctx then
         return nil
     end
-    local key = url.format(parsed)
-    if not key then
-        return nil
-    end
-    return meta_cache.schemas[key]
+    return meta_cache.schemas[ctx.key]
 end
 
 function M.cached_tables(input, schema)
-    local parsed, adapter = M.parse(input)
-    if not parsed or not adapter then
+    local ctx = metadata_target(input)
+    if not ctx then
         return nil
     end
-    local key = url.format(parsed)
-    if not key then
-        return nil
-    end
-    local cached = meta_cache.tables[key .. "\0" .. (schema or adapter.default_schema or "")]
+    local cached = meta_cache.tables[ctx.key .. "\0" .. (schema or ctx.adapter.default_schema or "")]
     if not cached and schema == nil then
-        cached = meta_cache.tables[key .. "\0"]
+        cached = meta_cache.tables[ctx.key .. "\0"]
     end
     return cached
 end
 
 function M.cached_columns(input, schema, table)
-    local parsed, adapter = M.parse(input)
-    if not parsed or not adapter then
-        return nil
-    end
-    local key = url.format(parsed)
-    if not key then
+    local ctx = metadata_target(input)
+    if not ctx then
         return nil
     end
     if schema == "" then
         schema = nil
     end
-    return meta_cache.columns[column_key(key, schema or adapter.default_schema, table)]
+    return meta_cache.columns[column_key(ctx.key, schema or ctx.adapter.default_schema, table)]
 end
 
 function M.fetch_columns(input, target, callback)
     target = target or {}
-    if type(callback) ~= "function" then
-        error("lua-dadbod.db.fetch_columns: callback must be a function")
-    end
-
-    local parsed, adapter = M.parse(input)
-    if not parsed or not adapter then
-        callback(nil, adapter or "invalid connection URL")
-        return
-    end
-
-    local key = url.format(parsed)
-    if not key then
-        callback(nil, "invalid connection URL")
+    check_callback("fetch_columns", callback)
+    local ctx, err = metadata_target(input)
+    if not ctx then
+        callback(nil, err)
         return
     end
 
@@ -370,94 +364,50 @@ function M.fetch_columns(input, target, callback)
     if schema == "" then
         schema = nil
     end
-    schema = schema or adapter.default_schema
-    local cache_key = column_key(key, schema, table_name)
-    if meta_cache.columns[cache_key] then
-        callback(vim.deepcopy(meta_cache.columns[cache_key]), nil)
-        return
-    end
-    if meta_cache.loading.columns[cache_key] then
-        table.insert(meta_cache.loading.columns[cache_key], callback)
-        return
-    end
-    if not adapter.columns_sql then
-        callback(nil, "adapter has no column metadata: " .. adapter.name)
-        return
-    end
+    schema = schema or ctx.adapter.default_schema
 
-    local ok, sql_text = pcall(adapter.columns_sql, {
-        schema = schema,
-        db = parsed.path and parsed.path:gsub("^/", "") or nil,
-        table = table_name,
-    })
-    if not ok or type(sql_text) ~= "string" or util.trim(sql_text) == "" then
-        callback(nil, "adapter returned no column metadata query: " .. adapter.name)
-        return
-    end
+    read_metadata(ctx, {
+        kind = "columns",
+        label = "column",
+        field = "columns_sql",
+        cache_key = column_key(ctx.key, schema, table_name),
+        build = function(conn)
+            return adapter_query(conn.adapter, "columns_sql", {
+                schema = schema,
+                db = database_name(conn.parsed),
+                table = table_name,
+            })
+        end,
+        decode = decode_columns,
+    }, callback)
+end
 
-    meta_cache.loading.columns[cache_key] = { callback }
-
-    local handle, err = M.run(key, sql_text, { meta = true }, function(result)
-        if result.code ~= 0 then
-            finish_loading("columns", cache_key, nil, metadata_error(result, "column"))
-            return
+local function clear_prefix(cache, prefix)
+    for cache_key in pairs(cache) do
+        if cache_key:sub(1, #prefix) == prefix then
+            cache[cache_key] = nil
         end
-
-        local columns = {}
-        for _, row in ipairs(parse_rows(result.stdout)) do
-            if type(row[1]) == "string" and row[1] ~= "" then
-                columns[#columns + 1] = { name = row[1], type = row[2] or "" }
-            end
-        end
-        meta_cache.columns[cache_key] = columns
-        finish_loading("columns", cache_key, columns, nil)
-    end)
-
-    if not handle then
-        finish_loading("columns", cache_key, nil, err)
     end
 end
 
 function M.clear_meta(input)
-    if input then
-        local parsed = M.parse(input)
-        if parsed then
-            local key = url.format(parsed)
-            if not key then
-                return
-            end
-            meta_cache.schemas[key] = nil
-            meta_cache.loading.schemas[key] = nil
-
-            local prefix = key .. "\0"
-            for cache_key in pairs(meta_cache.tables) do
-                if cache_key:sub(1, #prefix) == prefix then
-                    meta_cache.tables[cache_key] = nil
-                end
-            end
-            for cache_key in pairs(meta_cache.loading.tables) do
-                if cache_key:sub(1, #prefix) == prefix then
-                    meta_cache.loading.tables[cache_key] = nil
-                end
-            end
-            for cache_key in pairs(meta_cache.columns) do
-                if cache_key:sub(1, #prefix) == prefix then
-                    meta_cache.columns[cache_key] = nil
-                end
-            end
-            for cache_key in pairs(meta_cache.loading.columns) do
-                if cache_key:sub(1, #prefix) == prefix then
-                    meta_cache.loading.columns[cache_key] = nil
-                end
-            end
-        end
+    if not input then
+        meta_cache = empty_cache()
         return
     end
 
-    meta_cache.schemas = {}
-    meta_cache.tables = {}
-    meta_cache.columns = {}
-    meta_cache.loading = { schemas = {}, tables = {}, columns = {} }
+    local ctx = metadata_target(input)
+    if not ctx then
+        return
+    end
+
+    meta_cache.schemas[ctx.key] = nil
+    meta_cache.loading.schemas[ctx.key] = nil
+    local prefix = ctx.key .. "\0"
+    clear_prefix(meta_cache.tables, prefix)
+    clear_prefix(meta_cache.loading.tables, prefix)
+    clear_prefix(meta_cache.columns, prefix)
+    clear_prefix(meta_cache.loading.columns, prefix)
 end
 
 function M.run(input, sql, opts, callback)

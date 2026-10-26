@@ -39,10 +39,7 @@ function M.add(entry)
         table.remove(M.entries)
     end
 
-    local drawer = package.loaded["lua-dadbod.drawer"]
-    if drawer and drawer.is_open() then
-        pcall(drawer.render)
-    end
+    util.redraw_drawer()
 end
 
 function M.list()

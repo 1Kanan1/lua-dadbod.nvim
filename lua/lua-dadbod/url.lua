@@ -15,16 +15,8 @@ local function encode_with_safe(value, safe)
     end))
 end
 
-function M.decode(value)
-    return decode_component(value)
-end
-
 function M.decode_query(value)
     return decode_component((tostring(value or ""):gsub("%+", " ")))
-end
-
-function M.encode(value)
-    return encode_with_safe(value, "")
 end
 
 function M.path_encode(value)
