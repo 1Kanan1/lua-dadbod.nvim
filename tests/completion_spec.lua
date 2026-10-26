@@ -319,36 +319,40 @@ h.test("build completion items from the cache", function()
     cleanup(url, path, { bufnr })
 end)
 
-h.test("schema items carry the configured schema icon", function()
+h.test("schema and table items carry their configured icons", function()
     local bufnr = vim.api.nvim_create_buf(false, true)
     local original_tables = db.cached_tables
     local original_schemas = db.cached_schemas
 
     db.cached_tables = function()
-        return {}
+        return { "users" }
     end
     db.cached_schemas = function()
         return { "public" }
     end
 
-    local function schema_item()
-        local items = completion.items_for({
+    local function completion_items()
+        return completion.items_for({
             kind = "bare",
             position = true,
             url = "sqlite::memory:",
             bufnr = bufnr,
             adapter = { name = "sqlite", quote = { '"', '"' } },
         })
-        return items[1]
     end
 
-    local item = schema_item()
-    h.eq(item.label, "public")
-    h.eq(item.kind, 1)
-    h.eq(item.kind_icon, config.get().icons.schema)
+    local items = completion_items()
+    h.eq(items[1].label, "users")
+    h.eq(items[1].kind, 9)
+    h.eq(items[1].kind_icon, config.get().icons.table)
+    h.eq(items[2].label, "public")
+    h.eq(items[2].kind, 1)
+    h.eq(items[2].kind_icon, config.get().icons.schema)
 
     config.setup({ icons = false })
-    h.is_nil(schema_item().kind_icon)
+    local plain = completion_items()
+    h.is_nil(plain[1].kind_icon)
+    h.is_nil(plain[2].kind_icon)
 
     config.setup()
     db.cached_tables = original_tables

@@ -504,7 +504,10 @@ function M.items_for(context)
             db.fetch_tables(context.url, schema, noop)
         end
         for _, name in ipairs(tables or {}) do
-            push(items, max, adapter, name, KIND_MODULE, detail, { score = TABLE_SCORE_OFFSET })
+            push(items, max, adapter, name, KIND_MODULE, detail, {
+                score = TABLE_SCORE_OFFSET,
+                icon = icons.table,
+            })
         end
     end
 

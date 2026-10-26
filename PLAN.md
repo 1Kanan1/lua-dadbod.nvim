@@ -906,9 +906,9 @@ Implemented:
   character or in a table position, so `<C-space>` lists tables right after
   `FROM `. Blink does not open on whitespace by itself.
 - `completion_blink.lua`: a Blink source that answers synchronously from cache.
-- Schema items set Blink's `kind_icon` to the drawer's `icons.schema` glyph, so
-  they show a schema icon instead of the generic Text icon. `icons = false`
-  removes the override.
+- Table and schema items set Blink's `kind_icon` to the drawer's `icons.table`
+  and `icons.schema` glyphs, so the menu matches the drawer instead of using
+  the generic Module and Text icons. `icons = false` removes the overrides.
 - Opt-in Omni via `completion.omnifunc = true`.
 - Prefetch of up to three referenced tables 300 ms after opening or attaching a
   buffer.

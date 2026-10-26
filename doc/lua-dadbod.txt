@@ -237,9 +237,9 @@ Contexts and items:
     any other bare word    nothing
 
 Tables are never offered in `SELECT` lists, `WHERE` clauses, or empty buffers.
-Completion does not suggest SQL keywords. Schema entries carry the drawer's
-schema glyph (`icons.schema`) as their Blink menu icon, so they are easy to
-tell apart from tables and columns.
+Completion does not suggest SQL keywords. Schema and table entries carry the
+drawer's `icons.schema` and `icons.table` glyphs as their Blink menu icons, so
+they are easy to tell apart from columns.
 
 Blink requires a provider. This is the whole setup: >
 
