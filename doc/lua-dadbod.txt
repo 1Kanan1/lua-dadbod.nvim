@@ -32,8 +32,6 @@ the cursor or a visual selection. Results open in a horizontal split and are
 rendered as aligned tables. Completion offers schemas, tables, columns, and
 stored bind parameters without leaving the editor.
 
-This is an early build. Interfaces can change.
-
 ==============================================================================
 2. REQUIREMENTS                                     *lua-dadbod-requirements*
 
@@ -51,28 +49,17 @@ Add this to your lazy.nvim plugin list: >
 
     {
       "1Kanan1/lua-dadbod.nvim",
-      lazy = false, -- :DB and saved-query autocommands at startup
       opts = {},    -- passed to require("lua-dadbod").setup()
     }
 <
 lazy.nvim installs the plugin under `~/.local/share/nvim/lazy/lua-dadbod.nvim`
 and generates its help tags, so `:help lua-dadbod` works after installation.
 
-Do not lazy-load it on `ft = sql` or `VeryLazy`: the saved-query autocommands
-must be registered before the first SQL buffer is read, and `:DB` should be
-available from startup.
+Load the plugin at startup. Do not lazy-load it on `ft = sql` or `VeryLazy`:
+the saved-query autocommands must be registered before the first SQL buffer is
+read, and `:DB` should be available from startup.
 
-Local development uses the checkout directly: >
-
-    {
-      dir = "~/dev/lua-dadbod",
-      name = "lua-dadbod",
-      lazy = false,
-      opts = {},
-    }
-<
-lazy.nvim only tags installed plugins, so run `:helptags ~/dev/lua-dadbod/doc`
-once for local help.
+Local development is covered in CONTRIBUTING.md in the repository.
 
 vim-dadbod, vim-dadbod-ui, and vim-dadbod-completion also define `:DB` and the
 `dbui` filetypes. Disable them while using lua-dadbod.
@@ -438,9 +425,9 @@ Manual checklist ~
    10. Complete     `alias.` lists columns; `FROM ` plus <C-space> lists
                     tables.
 
-Adapter coverage: SQLite is exercised by the automated suite. PostgreSQL is
-verified against a local server. MySQL/MariaDB has argv and helper unit tests
-only; the repository has no server to test against.
+Adapter coverage: SQLite is exercised by the automated suite, and PostgreSQL
+is verified against a live server. MySQL/MariaDB is covered by adapter unit
+tests; a live-server run is still pending.
 
 ==============================================================================
 16. LICENSE                                               *lua-dadbod-license*

@@ -1,9 +1,11 @@
 # lua-dadbod
 
-Early test build of a Neovim SQL client. It replaces `vim-dadbod`,
-`vim-dadbod-ui`, and `vim-dadbod-completion`.
+A SQL client for Neovim, written in Lua. It replaces `vim-dadbod`,
+`vim-dadbod-ui`, and `vim-dadbod-completion` with a single plugin.
 
-Not stable yet. SQLite, PostgreSQL, and MySQL/MariaDB are supported.
+Browse connections and tables in a drawer, preview rows, run the statement under
+the cursor, and keep query history without leaving the editor. SQLite,
+PostgreSQL, and MySQL/MariaDB are supported.
 
 Full reference: `:help lua-dadbod`.
 
@@ -21,36 +23,19 @@ Add this to your lazy.nvim plugins:
 ```lua
 {
   "1Kanan1/lua-dadbod.nvim",
-  lazy = false, -- registers :DB and the saved-query autocommands at startup
   opts = {},
 }
 ```
 
-`opts` is passed to `require("lua-dadbod").setup()`. lazy.nvim installs the plugin
-under `~/.local/share/nvim/lazy/lua-dadbod.nvim` and generates its help tags, so
+`opts` is passed to `require("lua-dadbod").setup()`. lazy.nvim clones the plugin
+to `~/.local/share/nvim/lazy/lua-dadbod.nvim` and generates its help tags, so
 `:help lua-dadbod` works after installation.
 
-Do not lazy-load it on `ft = "sql"` or `VeryLazy`: the saved-query autocommands
-must exist before the first SQL buffer is read, and `:DB` should be available
-immediately.
+Load the plugin at startup. Do not lazy-load it on `ft = "sql"` or `VeryLazy`:
+the saved-query autocommands must exist before the first SQL buffer is read, and
+`:DB` should be available immediately.
 
 Restart Neovim after adding it.
-
-### Local development
-
-To work on lua-dadbod itself, point lazy.nvim at your checkout instead:
-
-```lua
-{
-  dir = "~/dev/lua-dadbod",
-  name = "lua-dadbod",
-  lazy = false,
-  opts = {},
-}
-```
-
-Local plugins are not tagged automatically, so run
-`:helptags ~/dev/lua-dadbod/doc` once to make `:help lua-dadbod` available.
 
 ## First run
 
@@ -259,10 +244,9 @@ copy them into `queries/<folder>/` under the new data directory.
 
 ## Status
 
-SQLite is covered by the automated suite. PostgreSQL is verified against a local
-server. MySQL/MariaDB has argv and helper unit tests only; this repository has no
-server to test against. The manual checklist lives in
-`:help lua-dadbod-manual-checks`.
+SQLite is exercised by the automated suite, and PostgreSQL is verified against a
+live server. MySQL/MariaDB is covered by adapter unit tests; a live-server run is
+still pending. The manual checklist lives in `:help lua-dadbod-manual-checks`.
 
 ## Tests
 
@@ -271,6 +255,11 @@ nvim --headless -u NONE -c "lua dofile('tests/run.lua')" -c "qa!"
 ```
 
 The suite needs `sqlite3` on `PATH`; no database server is required.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the local setup, tests, style, and
+documentation conventions.
 
 ## License
 
