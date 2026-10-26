@@ -10,6 +10,7 @@ local PREFETCH_LIMIT = 3
 local KIND_TEXT = 1
 local KIND_FIELD = 5
 local KIND_MODULE = 9
+local TABLE_SCORE_OFFSET = 10
 
 local reserved = {
     all = true,
@@ -98,6 +99,39 @@ local stop_words = {
     with = true,
 }
 
+local table_words = {
+    from = true,
+    join = true,
+    into = true,
+    update = true,
+    table = true,
+}
+
+local clause_words = {
+    except = true,
+    from = true,
+    group = true,
+    having = true,
+    intersect = true,
+    into = true,
+    join = true,
+    limit = true,
+    offset = true,
+    on = true,
+    order = true,
+    returning = true,
+    select = true,
+    set = true,
+    table = true,
+    union = true,
+    update = true,
+    using = true,
+    values = true,
+    where = true,
+    window = true,
+    with = true,
+}
+
 local memo = {}
 local prefetch_timers = {}
 
@@ -152,10 +186,17 @@ local function parse_qualified(text, pos)
     local schema, name = nil, unquote(first)
     local dot = text:find("%S", after)
     if dot and text:sub(dot, dot) == "." then
-        local second, after_second = next_ident(text, dot + 1)
-        if second then
-            schema, name, after = unquote(first), unquote(second), after_second
+        -- "from schema." ends in a dot: the reference is incomplete. A dot
+        -- followed directly by an identifier ("from schema.table") is not.
+        local ident_start = text:find("%S", dot + 1)
+        if not ident_start or ident_start ~= dot + 1 then
+            return nil
         end
+        local second, after_second = next_ident(text, ident_start)
+        if not second then
+            return nil
+        end
+        schema, name, after = unquote(first), unquote(second), after_second
     end
     return schema, name, after
 end
@@ -243,6 +284,72 @@ function M.prefix(before)
     return { kind = "bare", prefix = before:match("[%w_]*$") or "" }
 end
 
+local function last_clause(text)
+    local last
+    for start, word in text:gmatch("()([%a_][%w_$]*)") do
+        local previous = start > 1 and text:sub(start - 1, start - 1) or ""
+        if previous ~= "." then
+            local value = lower(word)
+            if clause_words[value] then
+                last = value
+            end
+        end
+    end
+    return last
+end
+
+-- True when the cursor is where a table name belongs, so the menu should show
+-- tables only: after FROM/JOIN/INTO/UPDATE/TABLE, or after a comma inside a
+-- FROM or JOIN list.
+function M.table_position(before)
+    local text = tostring(before or ""):gsub("[%w_$]*$", ""):gsub("%s+$", "")
+    if text == "" or text:sub(-1) == "(" then
+        return false
+    end
+
+    local comma = text:sub(-1) == ","
+    if comma then
+        text = text:sub(1, -2):gsub("%s+$", "")
+    end
+
+    local start, token = text:match("()([%a_][%w_$]*)$")
+    if token then
+        local previous = start > 1 and text:sub(start - 1, start - 1) or ""
+        if previous ~= "." and table_words[lower(token)] then
+            return true
+        end
+    end
+
+    if comma then
+        local clause = last_clause(text)
+        return clause == "from" or clause == "join"
+    end
+
+    return false
+end
+
+-- Blink calls this to decide whether the typed keyword is long enough to show
+-- the menu. A trigger character or a table position may have no keyword at all.
+function M.min_keyword_length(ctx)
+    if type(ctx) ~= "table" then
+        return 1
+    end
+    local kind = type(ctx.trigger) == "table" and ctx.trigger.initial_kind or nil
+    if kind == "trigger_character" then
+        return 0
+    end
+    if kind == "manual"
+        and type(ctx.line) == "string"
+        and type(ctx.cursor) == "table"
+        and type(ctx.cursor[2]) == "number"
+    then
+        if M.table_position(ctx.line:sub(1, ctx.cursor[2])) then
+            return 0
+        end
+    end
+    return 1
+end
+
 local function statement_text(bufnr, row, dialect)
     local count = vim.api.nvim_buf_line_count(bufnr)
     local first = math.max(1, row - SLICE)
@@ -304,7 +411,8 @@ function M.analysis(bufnr, row, col)
     end
 
     local line = vim.api.nvim_buf_get_lines(bufnr, row - 1, row, false)[1] or ""
-    local prefix = M.prefix(line:sub(1, col))
+    local before = line:sub(1, col)
+    local prefix = M.prefix(before)
     local dialect = statement.dialect(adapter.name)
     local sql = statement_text(bufnr, row, dialect)
 
@@ -318,6 +426,7 @@ function M.analysis(bufnr, row, col)
         adapter = adapter,
         dialect = dialect,
         prefix = prefix,
+        position = M.table_position(before),
         aliases = M.aliases(sql, dialect),
         sql = sql,
     }
@@ -363,22 +472,46 @@ local function quote_ident(adapter, name)
     return open .. name:gsub(close, close .. close) .. close
 end
 
-local function push(items, max, adapter, name, kind, detail)
+local function push(items, max, adapter, name, kind, detail, score)
     if #items >= max or type(name) ~= "string" or name == "" then
         return
     end
-    items[#items + 1] = {
+    local item = {
         label = name,
         kind = kind,
         detail = detail,
         insertText = quote_ident(adapter, name),
     }
+    if score then
+        item.score_offset = score
+    end
+    items[#items + 1] = item
 end
 
 function M.items_for(context)
     local max = config.get().completion.max_items or 200
     local items = {}
     local adapter = context.adapter
+
+    local function add_tables(schema, detail)
+        local tables = db.cached_tables(context.url, schema)
+        if not tables then
+            db.fetch_tables(context.url, schema, noop)
+        end
+        for _, name in ipairs(tables or {}) do
+            push(items, max, adapter, name, KIND_MODULE, detail, TABLE_SCORE_OFFSET)
+        end
+    end
+
+    local function add_schemas()
+        local schemas = db.cached_schemas(context.url)
+        if not schemas then
+            db.fetch_schemas(context.url, noop)
+        end
+        for _, name in ipairs(schemas or {}) do
+            push(items, max, adapter, name, KIND_TEXT, "schema")
+        end
+    end
 
     if context.kind == "binds" then
         local meta = vim.b[context.bufnr].lua_dadbod
@@ -399,28 +532,11 @@ function M.items_for(context)
             push(items, max, adapter, column.name, KIND_FIELD, detail)
         end
     elseif context.kind == "tables" then
-        local tables = db.cached_tables(context.url, context.schema)
-        if not tables then
-            db.fetch_tables(context.url, context.schema, noop)
-        end
-        for _, name in ipairs(tables or {}) do
-            push(items, max, adapter, name, KIND_MODULE, context.schema or "table")
-        end
+        add_tables(context.schema, context.schema or "table")
     else
-        local schemas = db.cached_schemas(context.url)
-        if not schemas then
-            db.fetch_schemas(context.url, noop)
-        end
-        for _, name in ipairs(schemas or {}) do
-            push(items, max, adapter, name, KIND_TEXT, "schema")
-        end
-
-        local tables = db.cached_tables(context.url, nil)
-        if not tables then
-            db.fetch_tables(context.url, nil, noop)
-        end
-        for _, name in ipairs(tables or {}) do
-            push(items, max, adapter, name, KIND_MODULE, "table")
+        add_tables(nil, "table")
+        if not context.position then
+            add_schemas()
         end
     end
 

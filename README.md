@@ -83,8 +83,9 @@ Add the provider to your Blink setup:
           name = "LuaDadbod",
           module = "lua-dadbod.completion_blink",
           min_keyword_length = function(ctx)
-            -- Allow `alias.` and `schema.` with nothing typed after the dot.
-            return ctx.trigger.initial_kind == "trigger_character" and 0 or 1
+            -- Allow `alias.`, `schema.`, and an empty keyword right after
+            -- FROM/JOIN so <C-space> can list tables there.
+            return require("lua-dadbod.completion").min_keyword_length(ctx)
           end,
         },
       },
@@ -95,6 +96,24 @@ Add the provider to your Blink setup:
 
 Then `alias.`, `table.`, `schema.`, bare table names, and `:bind` parameters
 complete.
+
+### Tables after FROM
+
+Completion knows when the cursor is waiting for a table name: after `FROM`,
+`JOIN`, `INTO`, `UPDATE`, `TABLE`, or a comma inside a `FROM`/`JOIN` list. It
+returns tables only there, and tables are ranked above schemas everywhere else.
+
+Blink does not open completion on whitespace, so nothing pops up immediately
+after typing `FROM `. Type the first letter of the table, or press `<C-space>`
+right after `FROM ` (the `min_keyword_length` function above allows an empty
+keyword in that position).
+
+System schemas are listed with the other schemas. `information_schema.` lists
+its tables and `pg_catalog.` does the same, but those tables are not mixed into
+the unqualified list.
+
+Completion covers schemas, tables, columns, and bind parameters. It does not
+suggest SQL keywords.
 
 ### Omni
 

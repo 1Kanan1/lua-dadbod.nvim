@@ -51,6 +51,21 @@ local function load_columns(url)
     return columns
 end
 
+local function load_tables(url)
+    local tables
+    local failure
+
+    db.fetch_tables(url, nil, function(value, err)
+        tables = value
+        failure = err
+    end)
+
+    h.ok(wait_for(function()
+        return tables ~= nil
+    end), failure or "table metadata timed out")
+    return tables
+end
+
 local function cleanup(url, path, buffers)
     for _, bufnr in ipairs(buffers or {}) do
         pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
@@ -98,6 +113,73 @@ h.test("parse table references and aliases", function()
     h.is_nil(inserts.set)
 end)
 
+h.test("ignore incomplete table references", function()
+    local dialect = statement.dialect("postgresql")
+
+    h.eq(#completion.references("select * from information_schema.", dialect), 0)
+    h.eq(#completion.references("select * from information_schema.\nwhere true", dialect), 0)
+    h.eq(completion.aliases("select * from information_schema.", dialect), {})
+
+    local refs = completion.references("select * from information_schema.tables", dialect)
+    h.eq(#refs, 1)
+    h.eq(refs[1].schema, "information_schema")
+    h.eq(refs[1].table, "tables")
+
+    local map = completion.aliases("select * from information_schema.tables t", dialect)
+    h.eq(map.tables, { schema = "information_schema", table = "tables" })
+    h.eq(map.t, { schema = "information_schema", table = "tables" })
+
+    local reserved_table = completion.aliases("select * from public.order", dialect)
+    h.eq(reserved_table.order, { schema = "public", table = "order" })
+end)
+
+h.test("detect table positions", function()
+    h.eq(completion.table_position("select * from "), true)
+    h.eq(completion.table_position("select * from or"), true)
+    h.eq(completion.table_position("delete from "), true)
+    h.eq(completion.table_position("insert into "), true)
+    h.eq(completion.table_position("update "), true)
+    h.eq(completion.table_position("create table "), true)
+    h.eq(completion.table_position("select * from orders o left join "), true)
+    h.eq(completion.table_position("select * from orders o, cust"), true)
+
+    h.eq(completion.table_position("select "), false)
+    h.eq(completion.table_position("select a, "), false)
+    h.eq(completion.table_position("select * from orders o where o."), false)
+    h.eq(completion.table_position("select * from orders o on "), false)
+    h.eq(completion.table_position("select * from public."), false)
+    h.eq(completion.table_position("select * from user_table "), false)
+    h.eq(completion.table_position("insert into users (name, "), false)
+end)
+
+h.test("allow an empty keyword in table positions", function()
+    h.eq(completion.min_keyword_length({ trigger = { initial_kind = "trigger_character" } }), 0)
+    h.eq(
+        completion.min_keyword_length({
+            trigger = { initial_kind = "manual" },
+            line = "select * from ",
+            cursor = { 1, #"select * from " },
+        }),
+        0
+    )
+    h.eq(
+        completion.min_keyword_length({
+            trigger = { initial_kind = "manual" },
+            line = "select ",
+            cursor = { 1, #"select " },
+        }),
+        1
+    )
+    h.eq(
+        completion.min_keyword_length({
+            trigger = { initial_kind = "keyword" },
+            line = "select * from ",
+            cursor = { 1, #"select * from " },
+        }),
+        1
+    )
+end)
+
 h.test("completion reads the statement around the cursor", function()
     local bufnr = make_buffer("sqlite::memory:", {
         "select * from first_table f;",
@@ -112,6 +194,44 @@ h.test("completion reads the statement around the cursor", function()
     h.eq(context.prefix.qualifier, "f")
 
     cleanup(nil, nil, { bufnr })
+end)
+
+h.test("treat an unfinished qualifier as a schema", function()
+    local bufnr = make_buffer("sqlite::memory:", { "select * from information_schema." })
+
+    local context = h.ok(completion.analysis(bufnr, 1, #"select * from information_schema."))
+    h.eq(context.kind, "tables")
+    h.eq(context.schema, "information_schema")
+    h.is_nil(context.target)
+
+    cleanup(nil, nil, { bufnr })
+end)
+
+h.test("table positions list tables only", function()
+    local url, path = make_database()
+    load_tables(url)
+
+    local bufnr = make_buffer(url, { "select * from " })
+    local items = completion.items(bufnr, 1, #"select * from ")
+    h.eq(#items, 1)
+    h.eq(items[1].label, "users")
+    h.eq(items[1].kind, 9)
+    h.eq(items[1].detail, "table")
+    h.eq(items[1].score_offset, 10)
+
+    cleanup(url, path, { bufnr })
+end)
+
+h.test("bare completion boosts tables", function()
+    local url, path = make_database()
+    load_tables(url)
+
+    local bufnr = make_buffer(url, { "select us" })
+    local items = completion.items(bufnr, 1, #"select us")
+    h.eq(items[1].label, "users")
+    h.eq(items[1].score_offset, 10)
+
+    cleanup(url, path, { bufnr })
 end)
 
 h.test("cache column metadata per connection", function()

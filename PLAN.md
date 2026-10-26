@@ -452,13 +452,15 @@ Default global maps, installed by `setup()`:
 - Cache per resolved connection, shared with the metadata cache in `db.lua`.
 - Context from `b:lua_dadbod`, then `b:db`, then `g:db`, then `$DATABASE_URL`.
 - Prefix cases:
-  - `schema.` -> tables in that schema.
+  - `schema.` -> tables in that schema, including system schemas.
   - `table.` or `alias.` -> columns of that table.
-  - unqualified -> schemas and tables in the current schema.
+  - unqualified -> tables first, then schemas. After `FROM`, `JOIN`, `INTO`,
+    `UPDATE`, `TABLE`, or a comma in a `FROM`/`JOIN` list -> tables only.
   - `:name` -> stored bind parameters.
 - Alias parsing keeps `from table t`, `join table as t`, and quoted
-  identifiers. Comments and string literals are ignored. It is a small scanner,
-  not a SQL parser.
+  identifiers. Comments and string literals are ignored. A reference ending in a
+  dot with no table after it (`from information_schema.`) is treated as
+  incomplete, so the qualifier resolves as a schema.
 - Only the current statement is read, using 150 lines around the cursor, never
   the whole buffer.
 - Columns are fetched on demand per table and cached. Opening or attaching a
@@ -468,10 +470,13 @@ Default global maps, installed by `setup()`:
   Omni needs a retry.
 - Sources:
   - Blink: `require("lua-dadbod.completion_blink")`, registered in the user's
-    Blink providers.
+    Blink providers. `completion.min_keyword_length(ctx)` allows an empty
+    keyword after a trigger character or in a table position, so `<C-space>`
+    lists tables right after `FROM `. Blink itself does not open on whitespace.
   - `omnifunc`, opt-in through `completion.omnifunc = true`, cache only.
-- Items are capped at `completion.max_items` (200). Identifiers are quoted only
-  when needed: spaces, non-word characters, mixed case, or a reserved word.
+- Items are capped at `completion.max_items` (200). Tables carry a positive
+  score offset so they sort above schemas. Identifiers are quoted only when
+  needed: spaces, non-word characters, mixed case, or a reserved word.
 - No functions, reserved words, unqualified columns, or per-client refresh
   hacks. `nvim-cmp` is not supported.
 
@@ -889,7 +894,17 @@ Implemented:
   rest of the connection metadata on DDL.
 - `completion.lua`: prefix parsing (`bare`, `qualified`, `binds`), alias and
   table-reference scanning over the current statement, statement slicing around
-  the cursor, item building with adapter-aware quoting, and a 200 item cap.
+  the cursor, table-position detection, item building with adapter-aware
+  quoting, and a 200 item cap.
+- Incomplete references such as `from information_schema.` are ignored, so the
+  qualifier resolves as a schema and lists its tables, including
+  `information_schema` and `pg_catalog`.
+- Table positions (`FROM`, `JOIN`, `INTO`, `UPDATE`, `TABLE`, and commas inside a
+  `FROM`/`JOIN` list) return tables only. Tables carry a score offset so they
+  sort above schemas elsewhere.
+- `completion.min_keyword_length(ctx)` allows an empty keyword after a trigger
+  character or in a table position, so `<C-space>` lists tables right after
+  `FROM `. Blink does not open on whitespace by itself.
 - `completion_blink.lua`: a Blink source that answers synchronously from cache.
 - Opt-in Omni via `completion.omnifunc = true`.
 - Prefetch of up to three referenced tables 300 ms after opening or attaching a
@@ -899,7 +914,7 @@ Implemented:
 Performance, measured on this machine:
 
 - Cache hit with the context memo warm: about 0.006 ms per call.
-- Cold context on a 5,000-line buffer: about 1.2 ms per call, because only 150
+- Cold context on a 5,000-line buffer: about 1.4 ms per call, because only 150
   lines either side of the cursor are scanned.
 - No process is started on the keystroke path. A cold cache returns empty and
   fills in the background, so the next keystroke completes.
@@ -910,6 +925,7 @@ Verification:
 nvim --headless -u NONE -c "lua dofile('tests/run.lua')" -c "qa!"
 ```
 
-Result: 134 passed, 0 failed. Manual check against
-`postgres://postgres@localhost/test` returned the five `orders` columns with
-their types at `o.`.
+Result: 140 passed, 0 failed. Manual checks against
+`postgres://postgres@localhost/test` returned the five `orders` columns at `o.`,
+four tables and no schemas after `FROM `, 69 tables after `information_schema.`,
+and 144 after `pg_catalog.`.
