@@ -12,6 +12,12 @@ local defaults = {
     auto_execute_helpers = true,
     bind_param_pattern = ":%w+",
     table_helpers = {},
+    completion = {
+        enabled = true,
+        omnifunc = false,
+        prefetch = true,
+        max_items = 200,
+    },
     icons = {
         expanded = "",
         collapsed = "",
@@ -72,6 +78,23 @@ local function validate(opts)
     end
     if opts.table_helpers ~= nil then
         assert(type(opts.table_helpers) == "table", "lua-dadbod.setup: table_helpers must be a table")
+    end
+    if opts.completion ~= nil then
+        assert(type(opts.completion) == "table", "lua-dadbod.setup: completion must be a table")
+        for _, key in ipairs({ "enabled", "omnifunc", "prefetch" }) do
+            if opts.completion[key] ~= nil then
+                assert(
+                    type(opts.completion[key]) == "boolean",
+                    "lua-dadbod.setup: completion." .. key .. " must be a boolean"
+                )
+            end
+        end
+        if opts.completion.max_items ~= nil then
+            assert(
+                type(opts.completion.max_items) == "number" and opts.completion.max_items > 0,
+                "lua-dadbod.setup: completion.max_items must be a positive number"
+            )
+        end
     end
     if opts.dbs ~= nil then
         assert(type(opts.dbs) == "table", "lua-dadbod.setup: dbs must be a table")

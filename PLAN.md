@@ -228,7 +228,8 @@ end)
 
 - `vim.system()` with `text = true`, callback wrapped in `vim.schedule`.
 - `job.cancel(handle)` sends SIGTERM.
-- No `jobwait` loops except one synchronous metadata helper for completion.
+- No `jobwait` loops. Completion answers from a cache and fetches in the
+  background, so it never blocks the editor.
 - Missing binary is reported before spawning.
 - stderr is captured separately and shown with the result.
 
@@ -249,10 +250,10 @@ One table keyed by resolved connection URL:
   start of a top-level statement), the cache for that connection is invalidated.
   If the drawer is open and the connection is expanded, it refetches in the
   background; otherwise the next drawer open refetches.
-- Completion uses the cache. If a value is missing, it fetches once with a
-  short timeout (default 3s), then caches it.
-- Opening a query from the drawer means the cache is already warm, so the
-  first completion does not block.
+- Completion uses the cache. Columns are fetched on demand per referenced table,
+  coalesced while in flight, and shared with the drawer preview.
+- Opening a query from the drawer means tables and possibly columns are already
+  warm, so the first completion usually has something to show.
 - `:LuaDadbodClearCache` and drawer refresh clear it.
 - External changes still need `R` or the clear-cache command. DDL executed
   inside a `do` block or a procedure is not detected.
@@ -448,26 +449,31 @@ Default global maps, installed by `setup()`:
 
 ### Completion
 
-- Cache per resolved connection, not per buffer.
+- Cache per resolved connection, shared with the metadata cache in `db.lua`.
 - Context from `b:lua_dadbod`, then `b:db`, then `g:db`, then `$DATABASE_URL`.
 - Prefix cases:
   - `schema.` -> tables in that schema.
   - `table.` or `alias.` -> columns of that table.
-  - unqualified -> tables and schemas.
-  - `:name` -> cached bind parameters.
+  - unqualified -> schemas and tables in the current schema.
+  - `:name` -> stored bind parameters.
 - Alias parsing keeps `from table t`, `join table as t`, and quoted
-  identifiers. It is a small line regex, not a SQL parser.
-- Unqualified column completion is dropped. That removes the column count
-  query, the 10k threshold, and the huge global column fetch.
-- No functions, reserved words, or per-client refresh hacks.
-- Identifier quoting comes from the adapter; quoting is applied when the name
-  contains spaces, non-word characters, mixed case, or a reserved word from a
-  short shared list.
+  identifiers. Comments and string literals are ignored. It is a small scanner,
+  not a SQL parser.
+- Only the current statement is read, using 150 lines around the cursor, never
+  the whole buffer.
+- Columns are fetched on demand per table and cached. Opening or attaching a
+  buffer prefetches up to three referenced tables after 300 ms.
+- The keystroke path never starts a process. A miss returns what is known and
+  requests the rest in the background; Blink shows it on the next keystroke and
+  Omni needs a retry.
 - Sources:
-  - `omnifunc`, opt-in through `completion.omnifunc = true`.
-  - `require("lua-dadbod.completion_blink")`.
-- `nvim-cmp` support is dropped. If it is ever needed, it is a small adapter
-  around the same completion function.
+  - Blink: `require("lua-dadbod.completion_blink")`, registered in the user's
+    Blink providers.
+  - `omnifunc`, opt-in through `completion.omnifunc = true`, cache only.
+- Items are capped at `completion.max_items` (200). Identifiers are quoted only
+  when needed: spaces, non-word characters, mixed case, or a reserved word.
+- No functions, reserved words, unqualified columns, or per-client refresh
+  hacks. `nvim-cmp` is not supported.
 
 ## 6. Configuration
 
@@ -481,6 +487,12 @@ require("lua-dadbod").setup({
   auto_execute_helpers = true,
   bind_param_pattern = ":%w+",
   table_helpers = {},
+  completion = {
+    enabled = true,
+    omnifunc = false,
+    prefetch = true,
+    max_items = 200,
+  },
   icons = {
     expanded = "",
     collapsed = "",
@@ -505,8 +517,8 @@ require("lua-dadbod").setup({
 })
 ```
 
-`completion` remains absent until Phase 5. `hide_schemas` is still absent;
-schemas are always listed for now.
+`completion.omnifunc` enables the Omni function; Blink is registered by the
+user. `hide_schemas` is still absent; schemas are always listed for now.
 `table_helpers` merges over adapter defaults. An empty string removes a helper.
 `mappings = false` disables all built-in maps. `icons = false` disables type
 icons while keeping the expand/collapse markers. Drawer colors are controlled
@@ -866,4 +878,38 @@ Result: 99 passed, 0 failed. Tests cover save/rename/delete, execute on save
 enabled and disabled, statusline formatting, and reopening a saved query in a
 separate `nvim --headless` process with `g:dbs` configured.
 
-Not started: completion.
+Not started: Phase 6 docs and live MySQL verification.
+
+## Phase 5 checkpoint
+
+Implemented:
+
+- `db.fetch_columns` and `db.cached_columns`, keyed by canonical URL, schema,
+  and table. Fetches coalesce while in flight, and columns are cleared with the
+  rest of the connection metadata on DDL.
+- `completion.lua`: prefix parsing (`bare`, `qualified`, `binds`), alias and
+  table-reference scanning over the current statement, statement slicing around
+  the cursor, item building with adapter-aware quoting, and a 200 item cap.
+- `completion_blink.lua`: a Blink source that answers synchronously from cache.
+- Opt-in Omni via `completion.omnifunc = true`.
+- Prefetch of up to three referenced tables 300 ms after opening or attaching a
+  buffer.
+- `:LuaDadbodClearCache` clears columns through the existing metadata path.
+
+Performance, measured on this machine:
+
+- Cache hit with the context memo warm: about 0.006 ms per call.
+- Cold context on a 5,000-line buffer: about 1.2 ms per call, because only 150
+  lines either side of the cursor are scanned.
+- No process is started on the keystroke path. A cold cache returns empty and
+  fills in the background, so the next keystroke completes.
+
+Verification:
+
+```
+nvim --headless -u NONE -c "lua dofile('tests/run.lua')" -c "qa!"
+```
+
+Result: 134 passed, 0 failed. Manual check against
+`postgres://postgres@localhost/test` returned the five `orders` columns with
+their types at `o.`.

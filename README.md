@@ -61,6 +61,67 @@ Enter on a connection or table to activate it. Enter on a table previews the
 first 50 rows. `e` opens the same query in an editable buffer, and `C` shows the
 table columns.
 
+## Completion
+
+Completion is cache-only on the keystroke path: it never starts a process. A
+cold cache returns what is known and fetches the rest in the background, so the
+first completion after opening a buffer may be empty and the next keystroke
+shows it.
+
+### Blink
+
+Add the provider to your Blink setup:
+
+```lua
+{
+  "saghen/blink.cmp",
+  opts = {
+    sources = {
+      per_filetype = { sql = { inherit_defaults = true, "dadbod" } },
+      providers = {
+        dadbod = {
+          name = "LuaDadbod",
+          module = "lua-dadbod.completion_blink",
+          min_keyword_length = function(ctx)
+            -- Allow `alias.` and `schema.` with nothing typed after the dot.
+            return ctx.trigger.initial_kind == "trigger_character" and 0 or 1
+          end,
+        },
+      },
+    },
+  },
+}
+```
+
+Then `alias.`, `table.`, `schema.`, bare table names, and `:bind` parameters
+complete.
+
+### Omni
+
+Opt in through setup:
+
+```lua
+require("lua-dadbod").setup({
+  completion = { omnifunc = true },
+})
+```
+
+Then use `<C-x><C-o>` where you want completion. Omni reads the cache only and
+returns nothing when the cache is cold.
+
+### Tuning
+
+```lua
+completion = {
+  enabled = true,   -- false turns completion off
+  omnifunc = false, -- opt-in Omni function
+  prefetch = true,  -- warm up to 3 tables after opening a buffer
+  max_items = 200,  -- cap on returned items
+}
+```
+
+`:LuaDadbodClearCache` clears columns together with the rest of the metadata.
+
 ## Conflict with vim-dadbod
 
 Both plugins define `:DB`. Disable `vim-dadbod`, `vim-dadbod-ui`, and

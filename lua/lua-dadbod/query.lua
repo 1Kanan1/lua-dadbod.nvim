@@ -310,6 +310,12 @@ local function setup_buffer(bufnr, adapter)
         buffer = bufnr,
         callback = refresh_drawer,
     })
+
+    local completion = require("lua-dadbod.completion")
+    if config.get().completion.omnifunc then
+        vim.bo[bufnr].omnifunc = "v:lua.lua_dadbod_omnifunc"
+    end
+    completion.schedule_prefetch(bufnr)
 end
 
 function M.open(connection, opts)

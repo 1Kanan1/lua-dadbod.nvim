@@ -28,8 +28,15 @@ local function sanitize(sql, opts)
         if state == "quote" then
             if c == quote_char then
                 if nextc == quote_char then
+                    if opts.identifiers and quote_char ~= "'" then
+                        out[#out + 1] = c
+                        out[#out + 1] = c
+                    end
                     i = i + 2
                 else
+                    if opts.identifiers and quote_char ~= "'" then
+                        out[#out + 1] = c
+                    end
                     state = "code"
                     quote_char = nil
                     i = i + 1
@@ -37,6 +44,9 @@ local function sanitize(sql, opts)
             elseif escapes and c == "\\" then
                 i = i + 2
             else
+                if opts.identifiers and quote_char ~= "'" then
+                    out[#out + 1] = c
+                end
                 i = i + 1
             end
         elseif state == "line" then
@@ -84,7 +94,11 @@ local function sanitize(sql, opts)
             quote_char = c
             local previous = i > 1 and sql:sub(i - 1, i - 1):lower() or ""
             escapes = opts.backslash_escapes or (opts.backslash_escapes_e and previous == "e")
-            out[#out + 1] = " "
+            if opts.identifiers and c ~= "'" then
+                out[#out + 1] = c
+            else
+                out[#out + 1] = " "
+            end
             i = i + 1
         elseif c == "$" and opts.dollar_quotes then
             local tag = sql:match("^%$%$", i) or sql:match("^%$[%a_][%w_]*%$", i)
@@ -105,6 +119,8 @@ local function sanitize(sql, opts)
 
     return table.concat(out)
 end
+
+M.sanitize = sanitize
 
 function M.is_metadata_change(sql, opts)
     if type(sql) ~= "string" or sql == "" then
