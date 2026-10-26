@@ -101,7 +101,11 @@ complete.
 
 Completion knows when the cursor is waiting for a table name: after `FROM`,
 `JOIN`, `INTO`, `UPDATE`, `TABLE`, or a comma inside a `FROM`/`JOIN` list. It
-returns tables only there, and tables are ranked above schemas everywhere else.
+returns tables and schemas only there, with tables first.
+
+Anywhere else a bare word returns nothing. Columns require `alias.` or
+`table.`, and bind parameters require `:name`. This keeps tables out of
+`SELECT` lists, `WHERE` clauses, and empty buffers.
 
 Blink does not open completion on whitespace, so nothing pops up immediately
 after typing `FROM `. Type the first letter of the table, or press `<C-space>`

@@ -222,16 +222,28 @@ h.test("table positions list tables only", function()
     cleanup(url, path, { bufnr })
 end)
 
-h.test("bare completion boosts tables", function()
+h.test("no tables outside table positions", function()
     local url, path = make_database()
     load_tables(url)
 
-    local bufnr = make_buffer(url, { "select us" })
-    local items = completion.items(bufnr, 1, #"select us")
-    h.eq(items[1].label, "users")
-    h.eq(items[1].score_offset, 10)
+    local cases = {
+        { "", 0 },
+        { "select ", #"select " },
+        { "select us", #"select us" },
+        { "select a, ", #"select a, " },
+        { "where x = ", #"where x = " },
+        { "group by ", #"group by " },
+    }
 
-    cleanup(url, path, { bufnr })
+    for _, case in ipairs(cases) do
+        local bufnr = make_buffer(url, { case[1] })
+        local items = completion.items(bufnr, 1, case[2])
+        h.eq(#items, 0, "unexpected items in: " .. case[1])
+        pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
+        completion.reset()
+    end
+
+    cleanup(url, path)
 end)
 
 h.test("cache column metadata per connection", function()

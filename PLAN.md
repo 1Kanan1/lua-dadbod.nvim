@@ -454,8 +454,8 @@ Default global maps, installed by `setup()`:
 - Prefix cases:
   - `schema.` -> tables in that schema, including system schemas.
   - `table.` or `alias.` -> columns of that table.
-  - unqualified -> tables first, then schemas. After `FROM`, `JOIN`, `INTO`,
-    `UPDATE`, `TABLE`, or a comma in a `FROM`/`JOIN` list -> tables only.
+  - unqualified -> only in table positions: tables first, then schemas. Any
+    other bare position returns nothing.
   - `:name` -> stored bind parameters.
 - Alias parsing keeps `from table t`, `join table as t`, and quoted
   identifiers. Comments and string literals are ignored. A reference ending in a
@@ -900,8 +900,9 @@ Implemented:
   qualifier resolves as a schema and lists its tables, including
   `information_schema` and `pg_catalog`.
 - Table positions (`FROM`, `JOIN`, `INTO`, `UPDATE`, `TABLE`, and commas inside a
-  `FROM`/`JOIN` list) return tables only. Tables carry a score offset so they
-  sort above schemas elsewhere.
+  `FROM`/`JOIN` list) return tables and schemas, tables first. Other bare
+  positions return nothing, so tables do not leak into `SELECT`, `WHERE`, or an
+  empty buffer.
 - `completion.min_keyword_length(ctx)` allows an empty keyword after a trigger
   character or in a table position, so `<C-space>` lists tables right after
   `FROM `. Blink does not open on whitespace by itself.

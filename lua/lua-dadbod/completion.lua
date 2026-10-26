@@ -533,11 +533,9 @@ function M.items_for(context)
         end
     elseif context.kind == "tables" then
         add_tables(context.schema, context.schema or "table")
-    else
+    elseif context.position then
         add_tables(nil, "table")
-        if not context.position then
-            add_schemas()
-        end
+        add_schemas()
     end
 
     return items
