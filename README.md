@@ -261,6 +261,21 @@ The suite needs `sqlite3` on `PATH`; no database server is required.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the local setup, tests, style, and
 documentation conventions.
 
+## Inspiration
+
+Thanks to these projects for the ideas and workflows that shaped lua-dadbod:
+
+- [vim-dadbod](https://github.com/tpope/vim-dadbod): `:DB`, connection URLs, and
+  running queries through the CLI client.
+- [vim-dadbod-ui](https://github.com/kristijanhusak/vim-dadbod-ui): the drawer,
+  scratchpads, and saved-query layout.
+- [vim-dadbod-completion](https://github.com/kristijanhusak/vim-dadbod-completion):
+  schema, table, and column completion.
+- [sqlua.nvim](https://github.com/Xemptuous/sqlua.nvim): a Lua-only SQL IDE with a
+  sidebar and `connections.json`.
+- [sqmeow.nvim](https://github.com/2giosangmitom/sqmeow.nvim): interactive
+  results and database-aware completion.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
